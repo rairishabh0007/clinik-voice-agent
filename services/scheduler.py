@@ -62,7 +62,8 @@ class Slot:
 
     @property
     def spoken(self) -> str:
-        return self.start.strftime("%A %d %B at %-I:%M %p")
+        # Built by hand: "%-I" (unpadded hour) is glibc-only and raises ValueError on Windows.
+        return f"{self.start:%A %d %B} at {self.start.hour % 12 or 12}:{self.start:%M %p}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
