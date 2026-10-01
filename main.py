@@ -34,7 +34,7 @@ from livekit.plugins import cartesia, deepgram, openai, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
 from agent.patient_agent import PatientOutreachAgent
-from agent.prompts import greeting
+from agent.prompts import GIVE_UP_LINE, RETRY_LINE, greeting
 from analysis.post_call import analyse_call
 from observability.opik_tracer import OpikCallTracer
 from services import patients
@@ -189,9 +189,43 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     tracer.attach(session, ctx, finalise=build_summary)
 
+    # LiveKit drops the turn on an unrecoverable model error and closes the session after a few
+    # in a row; either way the patient hears nothing. Speak fixed text instead, and on the last
+    # attempt hand off to a human callback rather than going silent.
+    model_failures = 0
+
     @session.on("error")
     def _on_session_error(event: Any) -> None:
-        state.errors.append(str(getattr(event, "error", event)))
+        nonlocal model_failures
+        error = getattr(event, "error", event)
+        state.errors.append(str(error))
+        if getattr(error, "recoverable", True) or getattr(error, "type", "") != "llm_error":
+            return
+        model_failures += 1
+        if model_failures < 3:
+            run_in_background(say_fixed(RETRY_LINE))
+        elif model_failures == 3:
+            run_in_background(give_up())
+
+    @session.on("conversation_item_added")
+    def _on_item(event: Any) -> None:
+        nonlocal model_failures
+        item = getattr(event, "item", None)
+        # A real reply from the model means it has recovered; only consecutive failures count.
+        if getattr(item, "role", None) == "assistant" and (
+            getattr(item, "text_content", None) not in (RETRY_LINE, GIVE_UP_LINE)
+        ):
+            model_failures = 0
+
+    async def say_fixed(text: str) -> None:
+        try:
+            await session.say(text, allow_interruptions=False).wait_for_playout()
+        except RuntimeError:
+            logger.info("session already closed; could not say %r", text)
+
+    async def give_up() -> None:
+        await say_fixed(GIVE_UP_LINE)
+        await hang_up("agent_error")
 
     background: set[asyncio.Task[Any]] = set()
 

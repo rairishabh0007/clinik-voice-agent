@@ -203,6 +203,28 @@ class TestFallbacks:
             "Analysis unavailable: the analysis model's rate limit was reached (429)."
         )
 
+    async def test_a_hung_model_still_gives_the_known_facts(self, state, monkeypatch):
+        """A request that never returns must end in the fallback, not in no analysis at all."""
+        import asyncio
+
+        monkeypatch.setattr(post_call, "_ANALYSIS_TIMEOUT_S", 0.05)
+
+        class Hangs:
+            class chat:
+                class completions:
+                    @staticmethod
+                    async def parse(**_):
+                        await asyncio.sleep(10)
+
+        state.voicemail_detected = True
+        result = await analyse_call(
+            state, transcript=[{"role": "user", "text": "hello"}], client=Hangs()
+        )
+
+        assert result.source == "fallback"
+        assert result.analysis.outcome == "voicemail"
+        assert "did not respond in time" in result.analysis.call_summary
+
     def test_no_transcript_summary_is_honest(self, state):
         result = _deterministic_only(state, "The call produced no conversation.")
         assert "no conversation" in result.analysis.call_summary

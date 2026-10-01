@@ -176,6 +176,10 @@ _RETRYABLE = ("429", "500", "502", "503", "504", "RESOURCE_EXHAUSTED", "UNAVAILA
 _MAX_ATTEMPTS = int(os.getenv("ANALYSIS_MAX_ATTEMPTS", "4"))
 # Total time spent waiting between attempts. Kept well inside the tracer's callback timeout.
 _RETRY_BUDGET_S = float(os.getenv("ANALYSIS_RETRY_BUDGET_S", "45"))
+# One request may not hang the analysis (the client's own default is ten minutes), and the whole
+# analysis must finish well inside the tracer's callback timeout so the fallback still runs.
+_REQUEST_TIMEOUT_S = 30.0
+_ANALYSIS_TIMEOUT_S = float(os.getenv("ANALYSIS_TIMEOUT_S", "90"))
 # Rate-limit errors say how long to wait ("Please retry in 31.2s", "retryDelay': '31s'").
 _SERVER_DELAY = re.compile(r"retry in ([\d.]+)s|retryDelay'?:\s*'([\d.]+)s")
 
@@ -188,6 +192,8 @@ def _server_delay(exc: Exception) -> float:
 def _describe(exc: Exception) -> str:
     """A one-line reason for the fallback summary, not the provider's full error payload."""
     text = str(exc)
+    if isinstance(exc, TimeoutError) or "timed out" in text.lower():
+        return "the analysis model did not respond in time"
     if "429" in text or "RESOURCE_EXHAUSTED" in text:
         return "the analysis model's rate limit was reached (429)"
     if "503" in text or "UNAVAILABLE" in text or "overloaded" in text:
@@ -259,9 +265,12 @@ async def analyse_call(
         # max_retries=0: _parse_with_retry owns retries. The SDK's own would multiply every
         # attempt by three and burn a free tier's per-minute quota on its own.
         client = client or AsyncOpenAI(
-            api_key=config.api_key, base_url=config.base_url, max_retries=0
+            api_key=config.api_key, base_url=config.base_url, max_retries=0,
+            timeout=_REQUEST_TIMEOUT_S,
         )
-        completion = await _parse_with_retry(client, config.model, prompt)
+        completion = await asyncio.wait_for(
+            _parse_with_retry(client, config.model, prompt), timeout=_ANALYSIS_TIMEOUT_S
+        )
         parsed = completion.choices[0].message.parsed
         if parsed is None:
             raise ValueError("model returned no parsed content")

@@ -132,3 +132,43 @@ class TestBooking:
         with pytest.raises(scheduler.SlotUnavailable, match="closed") as exc:
             scheduler.book("P001", "A", "endocrinology", day.isoformat())
         assert exc.value.alternatives, "a closed day must still offer alternatives"
+
+
+class TestExactTime:
+    @pytest.mark.parametrize("text,expected", [
+        ("10:30", (10, 30)), ("14:00", (14, 0)), ("10:30 am", (10, 30)),
+        ("2 pm", (14, 0)), ("12 pm", (12, 0)), ("12:30 a.m.", (0, 30)),
+    ])
+    def test_resolve_time(self, text, expected):
+        at = scheduler.resolve_time(text)
+        assert (at.hour, at.minute) == expected
+
+    @pytest.mark.parametrize("text", ["", "noon-ish", "25:00", "10:75"])
+    def test_resolve_time_rejects(self, text):
+        with pytest.raises(scheduler.SchedulingError):
+            scheduler.resolve_time(text)
+
+    def test_books_the_exact_time_offered(self):
+        slot = scheduler.available_slots("endocrinology", on=_next_open_day(), limit=1)[0]
+        booking = scheduler.book(
+            "P001", "A", "endocrinology", slot.start.date().isoformat(),
+            preferred_time=f"{slot.start:%H:%M}",
+        )
+        assert booking.slot.start == slot.start
+
+    def test_time_off_the_grid_offers_alternatives(self):
+        day = _next_open_day()
+        with pytest.raises(scheduler.SlotUnavailable, match="not an appointment time") as exc:
+            scheduler.book("P001", "A", "endocrinology", day.isoformat(), preferred_time="10:10")
+        assert exc.value.alternatives
+
+    def test_a_taken_time_is_not_silently_moved(self):
+        slot = scheduler.available_slots("endocrinology", on=_next_open_day(), limit=1)[0]
+        args = ("endocrinology", slot.start.date().isoformat())
+        scheduler.book("P001", "A", *args, preferred_time=f"{slot.start:%H:%M}")
+        with pytest.raises(scheduler.SlotUnavailable):
+            scheduler.book("P002", "B", *args, preferred_time=f"{slot.start:%H:%M}")
+
+    def test_morning_ends_before_noon(self):
+        slots = scheduler.available_slots("endocrinology", on=_next_open_day(), window="morning", limit=20)
+        assert slots and all(s.start.hour < 12 for s in slots)

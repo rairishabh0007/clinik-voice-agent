@@ -27,12 +27,13 @@ logger = logging.getLogger("patient-agent")
 
 
 def _booking_args(
-    preferred_date: str, preferred_window: str | None, specialty: str | None
+    preferred_date: str, preferred_window: str | None, specialty: str | None, **extra: Any
 ) -> dict[str, Any]:
     return {
         "preferred_date": preferred_date,
         "preferred_window": preferred_window,
         "specialty": specialty,
+        **extra,
     }
 
 
@@ -64,6 +65,17 @@ class PatientOutreachAgent(Agent):
             if item.type == "message" and item.role in ("user", "assistant")
         ]
         return bool(messages) and messages[-1].role == "user"
+
+    def _booked_since_patient_spoke(self) -> bool:
+        """True when the latest booking came after the patient's last words: they have not yet
+        heard the time and agreed to it."""
+        if not self._state.bookings:
+            return False
+        spoke_at = [
+            item.created_at for item in self.chat_ctx.items
+            if item.type == "message" and item.role == "user"
+        ]
+        return not spoke_at or self._state.bookings[-1].booked_at.timestamp() > max(spoke_at)
 
     # ------------------------------------------------------------------ tools
 
@@ -122,18 +134,25 @@ class PatientOutreachAgent(Agent):
         self,
         context: RunContext,
         preferred_date: str,
+        preferred_time: str,
         preferred_window: str | None = None,
         specialty: str | None = None,
     ) -> dict[str, Any]:
-        """Book the consultation. Only call this once the patient has agreed to a specific time.
+        """Book the consultation at the exact time the patient chose.
+
+        Only call this after offering times from check_availability and hearing the patient
+        pick one.
 
         Args:
             preferred_date: The agreed day, as YYYY-MM-DD.
-            preferred_window: "morning", "afternoon" or "evening".
+            preferred_time: The agreed start time, as HH:MM in 24-hour time (e.g. "10:30").
+            preferred_window: "morning", "afternoon" or "evening", if the patient said one.
             specialty: The clinic to book with. Defaults to endocrinology.
         """
         patient = self._state.patient
-        args = _booking_args(preferred_date, preferred_window, specialty)
+        args = _booking_args(
+            preferred_date, preferred_window, specialty, preferred_time=preferred_time
+        )
         try:
             booking = scheduler.book(
                 patient_id=patient.id,
@@ -141,6 +160,7 @@ class PatientOutreachAgent(Agent):
                 specialty=specialty,
                 preferred_date=preferred_date,
                 preferred_window=preferred_window,
+                preferred_time=preferred_time,
             )
         except scheduler.SchedulingError as exc:
             self._state.record_tool("book_appointment", args, error=str(exc))
@@ -149,7 +169,7 @@ class PatientOutreachAgent(Agent):
             if exc.alternatives:
                 raise ToolError(
                     f"{exc} Offer these instead and ask the patient to pick one: "
-                    + "; ".join(s.spoken for s in exc.alternatives)
+                    + "; ".join(f"{s.spoken} ({s.start:%H:%M})" for s in exc.alternatives)
                 ) from exc
             raise ToolError(f"{exc} Nothing else is free nearby — offer a callback.") from exc
 
@@ -217,7 +237,7 @@ class PatientOutreachAgent(Agent):
         return "Transferred."
 
     @function_tool()
-    async def end_call(self, context: RunContext, reason: str) -> None:
+    async def end_call(self, context: RunContext, reason: str) -> str | None:
         """End the call after you have said goodbye.
 
         Args:
@@ -225,6 +245,12 @@ class PatientOutreachAgent(Agent):
                 "callback_requested", or a short phrase describing why.
         """
         normalised = (reason or "completed").strip().lower().replace(" ", "_")
+        if self._booked_since_patient_spoke():
+            self._state.record_tool("end_call", {"reason": reason}, error="booking not confirmed")
+            return (
+                "Do not end the call yet. Read the booked day and time back, ask the patient "
+                "whether it works for them, and wait for their answer."
+            )
         self._state.end_reason = normalised
         if normalised in {"do_not_call", "dnc", "do_not_contact"}:
             self._state.do_not_call_requested = True

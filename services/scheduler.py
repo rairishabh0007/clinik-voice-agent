@@ -7,6 +7,7 @@ the date, so a demo reproduces exactly; bookings are held in memory for the life
 from __future__ import annotations
 
 import hashlib
+import re
 import threading
 import uuid
 from dataclasses import dataclass
@@ -25,7 +26,8 @@ SPECIALTIES: dict[str, str] = {
 DEFAULT_SPECIALTY = "endocrinology"
 
 WINDOWS: dict[str, tuple[time, time]] = {
-    "morning": (time(9, 30), time(12, 30)),
+    # Morning ends at noon: a patient who asks for "morning" does not mean 12:00.
+    "morning": (time(9, 30), time(12, 0)),
     "afternoon": (time(14, 0), time(17, 0)),
     "evening": (time(17, 0), time(19, 30)),
 }
@@ -70,6 +72,7 @@ class Slot:
             "specialty": self.specialty,
             "clinician": self.clinician,
             "start": self.start.isoformat(),
+            "time": f"{self.start:%H:%M}",
             "spoken": self.spoken,
         }
 
@@ -146,6 +149,22 @@ def check_bookable(day: date) -> None:
         raise SchedulingError(
             f"Appointments can only be booked up to {BOOKING_HORIZON_DAYS} days ahead."
         )
+
+
+def resolve_time(text: str) -> time:
+    """'10:30', '14:00', '10:30 am', '2 pm' -> time. The prompt asks for HH:MM."""
+    raw = (text or "").strip().lower().replace(".", "")
+    match = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", raw)
+    if not match:
+        raise SchedulingError(f"Could not understand the time {text!r}. Use HH:MM.")
+    hour, minute, meridiem = int(match.group(1)), int(match.group(2) or 0), match.group(3)
+    if meridiem == "pm" and hour < 12:
+        hour += 12
+    elif meridiem == "am" and hour == 12:
+        hour = 0
+    if hour > 23 or minute > 59:
+        raise SchedulingError(f"Could not understand the time {text!r}. Use HH:MM.")
+    return time(hour, minute)
 
 
 def _is_open(day: date) -> bool:
@@ -233,8 +252,9 @@ def book(
     specialty: str | None,
     preferred_date: str,
     preferred_window: str | None = None,
+    preferred_time: str | None = None,
 ) -> Booking:
-    """Book the first free slot matching the request.
+    """Book the exact time the patient agreed to, or else the first free slot in the window.
 
     Raises SlotUnavailable (carrying alternatives) rather than silently shifting the appointment —
     the agent must offer the alternative and get the patient to agree.
@@ -251,30 +271,44 @@ def book(
             available_slots(spec, on=day, window=win, limit=3),
         )
 
-    exact = available_slots(spec, on=day, window=win, limit=1)
-    if not exact or exact[0].start.date() != day:
-        alternatives = available_slots(spec, on=day, window=None, limit=3)
-        window_text = f" in the {win}" if win else ""
-        raise SlotUnavailable(
-            f"No {spec} slot is free on {day.strftime('%A %d %B')}{window_text}.",
-            alternatives,
-        )
-
-    slot = exact[0]
-    with _lock:
-        if slot.key in _bookings:
+    if preferred_time:
+        at = resolve_time(preferred_time)
+        slot = next((s for s in _grid(spec, day, None) if s.start.time() == at), None)
+        if slot is None:
             raise SlotUnavailable(
-                "That slot was just taken.",
+                f"{at:%H:%M} is not an appointment time on {day.strftime('%A %d %B')}.",
                 available_slots(spec, on=day, window=win, limit=3),
             )
-        booking = Booking(
-            confirmation_id=f"APT-{uuid.uuid4().hex[:8].upper()}",
-            patient_id=patient_id,
-            patient_name=patient_name,
-            slot=slot,
-            booked_at=current,
+        if slot.start - current < MIN_LEAD_TIME or not _slot_is_free(slot):
+            raise SlotUnavailable(
+                f"{slot.spoken} is not free.", available_slots(spec, on=day, window=win, limit=3)
+            )
+    else:
+        exact = available_slots(spec, on=day, window=win, limit=1)
+        if not exact or exact[0].start.date() != day:
+            alternatives = available_slots(spec, on=day, window=None, limit=3)
+            window_text = f" in the {win}" if win else ""
+            raise SlotUnavailable(
+                f"No {spec} slot is free on {day.strftime('%A %d %B')}{window_text}.",
+                alternatives,
+            )
+        slot = exact[0]
+    with _lock:
+        taken = slot.key in _bookings
+        if not taken:
+            booking = Booking(
+                confirmation_id=f"APT-{uuid.uuid4().hex[:8].upper()}",
+                patient_id=patient_id,
+                patient_name=patient_name,
+                slot=slot,
+                booked_at=current,
+            )
+            _bookings[slot.key] = booking
+    if taken:
+        # Outside the lock: available_slots takes it too, and the lock is not re-entrant.
+        raise SlotUnavailable(
+            f"{slot.spoken} was just taken.", available_slots(spec, on=day, window=win, limit=3)
         )
-        _bookings[slot.key] = booking
     return booking
 
 

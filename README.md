@@ -264,7 +264,9 @@ mapped to a distinct outcome and still produce an Opik trace; a call nobody answ
 not an absence of data. Patient hangs up mid-call → partial transcript still analysed. Silence →
 the agent checks in once ("Are you still there?") and hangs up if the line stays silent.
 `MAX_CALL_DURATION_S` caps every call — on the SIP leg for phone calls, in the worker for browser
-calls. Provider errors mid-call are captured on the trace rather than killing the session.
+calls. Provider errors mid-call are captured on the trace rather than killing the session. If the language model fails outright mid-call (a
+rate limit or an outage), the patient hears "could you say that again?" rather than silence, and
+after three failures in a row an apology and a promised callback before the call ends.
 
 **Clinical and privacy** — identity is confirmed through a tool before any health data is shared;
 if the wrong person answers nothing is disclosed. Voicemail gets a generic callback message only,
@@ -274,7 +276,9 @@ script and escalate. "Do not call me again" is acknowledged, flagged, and ends t
 never hangs up on a patient whose last words went unanswered: if the model ends the call without a
 goodbye, a fixed closing line with no health information is spoken first.
 
-**Booking** — an unavailable slot returns alternatives rather than failing; closed days say so
+**Booking** — the agent offers times from `check_availability` and books only the exact time the
+patient picks (`book_appointment` requires it); after booking it may not end the call until the
+patient has heard the time and answered; an unavailable slot returns alternatives rather than failing; closed days say so
 explicitly; past dates and dates beyond the 21-day horizon are rejected; models that pass "tuesday"
 or "tomorrow" instead of `YYYY-MM-DD` are handled; a booking tool call that *errors* still means
 `appointment_booked = False`.
@@ -317,7 +321,7 @@ hosting is purpose-built for this and has a free allowance.
 uv run --group dev pytest
 ```
 
-46 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
+77 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
 days, relative dates, the booking horizon), the analysis reconciliation (the model claiming a
 booking that did not happen, missing one that did, and every deterministic override), rate-limit
 retries, and the Opik module's failure handling (a hung analysis still logs the call, a double

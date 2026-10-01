@@ -128,7 +128,7 @@ uv run python web/server.py                 # the console, on :8080
   analysis still completes, nothing is sent.
 - **Use headphones for a browser call.** On speakers the agent hears itself and starts replying to
   its own voice.
-- **Tests:** `uv run --group dev pytest` — 46 tests over the scheduler (conflicts, alternatives,
+- **Tests:** `uv run --group dev pytest` — 77 tests over the scheduler (conflicts, alternatives,
   closed days, relative dates, booking horizon), the analysis reconciliation (the model claiming
   a booking that did not happen, missing one that did, and every deterministic override), rate-limit
   retries, and the Opik module's failure handling (a hung analysis still logs the call).

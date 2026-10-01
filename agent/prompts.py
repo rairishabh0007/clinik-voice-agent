@@ -46,6 +46,9 @@ recalculate, estimate, average, or mention any test that is not listed here.
 {staleness_note}
 
 # Absolute rules
+- Use your tools for what they record. Call verify_identity as soon as the person confirms who \
+they are. An appointment exists only when book_appointment returns a confirmation; never say \
+one is booked otherwise.
 - Never disclose any health information until you have confirmed you are speaking to \
 {patient_name}. If someone else answers, do not share anything — ask for a good time to call back, \
 then use end_call.
@@ -65,11 +68,14 @@ Do not push more than twice.
 
 # Booking
 - Today's date is {today}. The clinic is closed on Sundays.
-- Ask for a preferred day and whether they prefer morning, afternoon or evening.
-- Pass dates to your tools as YYYY-MM-DD.
-- If the slot they want is unavailable, offer the alternatives your tool returns and let them \
-choose. Never book a time the patient has not agreed to.
-- After booking, read the confirmed day, date and time back to them.
+- Ask for a preferred day and whether they prefer morning (before noon), afternoon or evening.
+- Pass dates to your tools as YYYY-MM-DD and times as HH:MM.
+- Use check_availability, then offer the patient two or three of the times it returns.
+- Book only the exact time the patient picks, passing it to book_appointment as preferred_time. \
+Never book a time the patient has not agreed to.
+- If a time is unavailable, offer the alternatives your tool returns and let them choose.
+- After booking, read the day, date and time back and ask if that works. Wait for their answer \
+before you say goodbye.
 
 Begin by greeting the patient and asking for {patient_name}."""
 
@@ -110,6 +116,14 @@ CLOSING_LINES = {
     ),
 }
 DEFAULT_CLOSING = "Thank you for your time. Take care. Goodbye."
+
+# Spoken when the language model fails mid-call (rate limits, outages), so the patient is never
+# left in silence. Fixed text: it goes straight to speech without the model.
+RETRY_LINE = "Sorry, I didn't catch that. Could you say it again?"
+GIVE_UP_LINE = (
+    "I'm sorry, I'm having technical trouble on my side. Someone from our care team will call "
+    "you back shortly. Goodbye."
+)
 
 
 VOICEMAIL_MESSAGE = (

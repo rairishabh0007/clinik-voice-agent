@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from agent.patient_agent import PatientOutreachAgent
 from agent.prompts import CLOSING_LINES, DEFAULT_CLOSING
-from services import patients
+from services import patients, scheduler
 from services.call_state import CallState
 
 
@@ -62,3 +62,38 @@ def test_briefing_only_uses_words_the_rules_allow():
     briefing = patients.biomarker_briefing(patients.get_patient("P002"))
     assert "borderline" not in briefing
     assert "slightly above the normal range" in briefing
+
+
+def _book(state):
+    slot = scheduler.available_slots("endocrinology", limit=1)[0]
+    state.bookings.append(scheduler.book(
+        "P002", "Vikram Singh", "endocrinology", slot.start.date().isoformat(),
+        preferred_time=f"{slot.start:%H:%M}",
+    ))
+
+
+async def test_end_call_waits_for_the_patient_to_hear_the_booking():
+    """The model booked and said goodbye in one breath; the patient never got to object."""
+    scheduler.reset()
+    agent, state = _agent()
+    agent._chat_ctx.add_message(role="user", content="Tomorrow morning.")
+    _book(state)
+    said = []
+
+    result = await agent.end_call(_context(said), reason="completed")
+
+    assert result and "wait for their answer" in result
+    assert said == [] and state.end_reason is None
+
+
+async def test_end_call_allowed_once_the_patient_answered():
+    scheduler.reset()
+    agent, state = _agent()
+    _book(state)
+    agent._chat_ctx.add_message(role="assistant", content="That is Tuesday at 10:30. Does that work?")
+    agent._chat_ctx.add_message(role="user", content="Yes, perfect. Bye.")
+    agent._chat_ctx.add_message(role="assistant", content="Take care, goodbye.")
+
+    result = await agent.end_call(_context([]), reason="completed")
+
+    assert result is None and state.end_reason == "completed"
