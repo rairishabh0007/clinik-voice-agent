@@ -3,157 +3,227 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Care Outreach Console</title>
+<title>Clinik Care · Voice Agent Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  --ground:#F6F8F9; --surface:#fff; --surface-2:#EDF2F4;
-  --ink:#0F1A20; --ink-2:#4A5A64; --ink-3:#78888F;
-  --line:#D8E1E5; --accent:#0B6E78; --accent-soft:#DFEFF0;
-  --clinical:#A0472A; --clinical-soft:#F7E8E1;
-  --ok:#2C6A4E; --ok-soft:#E0F0E7;
+  --ground:#F4F5FB; --surface:#FFFFFF; --surface-2:#EEF0F8;
+  --ink:#141833; --ink-2:#4B5170; --ink-3:#7F85A3;
+  --line:#DFE2EE; --accent:#3D4FD6; --accent-ink:#FFFFFF; --accent-soft:#E6E9FC;
+  --alert:#C2413A; --alert-soft:#FBE7E5;
+  --warn:#A8620A; --warn-soft:#FBEFDC;
+  --ok:#1F7A52; --ok-soft:#DFF3E9;
+  --shadow:0 1px 2px rgba(20,24,51,.05),0 4px 16px rgba(20,24,51,.05);
   --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root{
-  --ground:#0B1216; --surface:#121C21; --surface-2:#18242A;
-  --ink:#DCE7EB; --ink-2:#9BABB4; --ink-3:#6D7E87;
-  --line:#22323A; --accent:#4BBDC6; --accent-soft:#10333A;
-  --clinical:#E39670; --clinical-soft:#32211A;
-  --ok:#74C49A; --ok-soft:#11291F;
+  --ground:#0D0F1C; --surface:#151830; --surface-2:#1C2040;
+  --ink:#E7E9F7; --ink-2:#A6ABCB; --ink-3:#737997;
+  --line:#272B4A; --accent:#8F9CFF; --accent-ink:#0D0F1C; --accent-soft:#232A5C;
+  --alert:#F08A82; --alert-soft:#3A1E22;
+  --warn:#F0B25C; --warn-soft:#382A14;
+  --ok:#6FD3A4; --ok-soft:#14302A;
+  --shadow:none;
 }}
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);
-  font-family:Inter,system-ui,sans-serif;font-size:15px;line-height:1.6}
-.wrap{max-width:920px;margin:0 auto;padding-inline:24px;padding-block:34px 80px}
-.nav{border-bottom:1px solid var(--line);background:var(--surface)}
-.nav-inner{max-width:920px;margin:0 auto;padding:14px 24px;display:flex;gap:22px;align-items:center}
-.nav a{font-family:var(--mono);font-size:.82rem;text-decoration:none;color:var(--ink-3);
-  padding-bottom:2px;border-bottom:2px solid transparent}
-.nav a:hover{color:var(--ink-2)}
-.nav a.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+  font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.hidden{display:none!important}
 
-h1{font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:2rem;
-  letter-spacing:-.02em;margin:0 0 4px}
-.sub{color:var(--ink-2);margin:0 0 32px}
-h2{font-family:"Bricolage Grotesque",sans-serif;font-weight:600;font-size:1.15rem;
-  margin:0 0 14px;letter-spacing:-.01em}
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top-inner{max-width:960px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);margin-right:auto}
+.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-weight:800;font-size:1rem}
+.brand b{font-weight:700;font-size:1rem;display:block;line-height:1.2}
+.brand small{color:var(--ink-3);font-size:.75rem;display:block;line-height:1.2}
+.top nav{display:flex;gap:4px}
+.top nav a{font-size:.85rem;font-weight:600;color:var(--ink-2);text-decoration:none;
+  padding:7px 12px;border-radius:8px}
+.top nav a:hover{background:var(--surface-2)}
+.top nav a.on{background:var(--accent-soft);color:var(--accent)}
+.top nav a{white-space:nowrap}
 
-.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;
-  padding:22px 24px;margin-bottom:20px}
+.wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:1.75rem;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+.lede{color:var(--ink-2);margin:0 0 28px;max-width:62ch}
+h2{font-size:1.05rem;font-weight:700;margin:0;letter-spacing:-.01em}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);padding:22px;margin-bottom:18px}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-bottom:16px;flex-wrap:wrap}
+.step{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:2px}
 
-select{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:4px;
-  background:var(--surface);color:var(--ink);width:100%;max-width:340px}
-label{display:block;font-size:.8rem;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+.patients{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.patient{all:unset;box-sizing:border-box;cursor:pointer;border:1.5px solid var(--line);
+  border-radius:12px;padding:14px 15px;display:flex;flex-direction:column;gap:4px;
+  background:var(--surface);transition:border-color .15s,background .15s}
+.patient:hover{border-color:var(--ink-3)}
+.patient:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.patient[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.patient .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.patient .name{font-weight:700}
+.patient .meta{font-size:.82rem;color:var(--ink-2)}
+.patient .id{font-family:var(--mono);font-size:.72rem;color:var(--ink-3)}
 
-.bio{font-family:var(--mono);font-size:.85rem;color:var(--ink-2);
-  display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:5px 0}
-.bio b{color:var(--ink);font-size:.95rem}
-.pill{display:inline-block;font-family:var(--mono);font-size:.7rem;font-weight:500;
-  padding:2px 8px;border-radius:3px;letter-spacing:.03em}
-.pill.hi{background:var(--clinical-soft);color:var(--clinical)}
-.pill.ok{background:var(--ok-soft);color:var(--ok)}
-.pill.flat{background:var(--surface-2);color:var(--ink-2)}
-.pill.live{background:var(--accent-soft);color:var(--accent)}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:99px;
+  white-space:nowrap}
+.tag.high{background:var(--alert-soft);color:var(--alert)}
+.tag.borderline{background:var(--warn-soft);color:var(--warn)}
+.tag.normal,.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.tag.flat{background:var(--surface-2);color:var(--ink-2)}
+.tag.blocked{background:var(--alert-soft);color:var(--alert)}
 
-button{font:inherit;font-weight:600;padding:12px 26px;border-radius:5px;
-  border:1px solid transparent;cursor:pointer;transition:opacity .15s}
-button:disabled{opacity:.4;cursor:not-allowed}
-button:not(:disabled):hover{opacity:.88}
-.primary{background:var(--accent);color:#fff}
-.danger{background:var(--clinical);color:#fff}
-.ghost{background:transparent;border-color:var(--line);color:var(--ink-2)}
-.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.results{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.results-title{font-size:.8rem;font-weight:700;color:var(--ink-2);margin-bottom:10px}
+.bio{display:grid;grid-template-columns:1fr auto;gap:2px 14px;padding:10px 0;
+  border-bottom:1px dashed var(--line)}
+.bio:last-child{border-bottom:none}
+.bio .what{font-weight:600}
+.bio .val{font-family:var(--mono);font-weight:500;text-align:right}
+.bio .ref{grid-column:1 / -1;font-size:.8rem;color:var(--ink-3)}
 
-#status{font-family:var(--mono);font-size:.82rem;color:var(--ink-2)}
-.dot{display:inline-block;width:7px;height:7px;border-radius:50%;
-  background:var(--ink-3);margin-right:7px;vertical-align:middle}
+.note{padding:11px 14px;border-radius:10px;font-size:.88rem;margin-top:14px}
+.note.bad{background:var(--alert-soft);color:var(--alert)}
+.note.good{background:var(--ok-soft);color:var(--ok)}
+.note.info{background:var(--surface-2);color:var(--ink-2)}
+
+.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}
+button.btn{font:inherit;font-weight:700;font-size:.92rem;padding:11px 22px;border-radius:10px;
+  border:1px solid transparent;cursor:pointer;transition:filter .15s,opacity .15s}
+button.btn:disabled{opacity:.4;cursor:not-allowed}
+button.btn:not(:disabled):hover{filter:brightness(1.08)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.danger{background:var(--alert);color:#fff}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--ink-2)}
+
+#status{font-size:.85rem;color:var(--ink-2);display:inline-flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
 .dot.on{background:var(--ok);animation:pulse 1.6s infinite}
 .dot.busy{background:var(--accent);animation:pulse 1.6s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.dot{animation:none!important}}
+.timer{font-family:var(--mono);font-size:.85rem;color:var(--ink-2)}
 
-#transcript{display:flex;flex-direction:column;gap:12px;max-height:440px;
-  overflow-y:auto;padding-right:6px}
-.turn{max-width:82%;padding:11px 15px;border-radius:12px;white-space:pre-wrap}
-.turn.agent{background:var(--surface-2);border-bottom-left-radius:3px;align-self:flex-start}
-.turn.user{background:var(--accent-soft);border-bottom-right-radius:3px;align-self:flex-end}
-.turn .who{display:block;font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
-.turn.interim{opacity:.55}
-.empty{color:var(--ink-3);font-style:italic}
+#transcript{display:flex;flex-direction:column;gap:10px;max-height:460px;overflow-y:auto;
+  padding:4px 4px 4px 0}
+.turn{max-width:80%;padding:10px 14px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.turn.agent{background:var(--surface-2);border-bottom-left-radius:4px;align-self:flex-start}
+.turn.user{background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px;
+  align-self:flex-end}
+.turn .who{display:block;font-size:.68rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;opacity:.7;margin-bottom:2px}
+.turn.interim{opacity:.6}
+.empty{color:var(--ink-3);font-style:italic;margin:0}
 
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;
-  margin-bottom:20px}
-.metric .k{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
-.metric .v{font-family:"Bricolage Grotesque",sans-serif;font-size:1.5rem;font-weight:600}
-
-.note{padding:12px 15px;border-radius:5px;font-size:.9rem;margin-bottom:14px}
-.note.good{background:var(--ok-soft);color:var(--ok)}
-.note.bad{background:var(--clinical-soft);color:var(--clinical)}
-details{border-top:1px solid var(--line);padding-top:11px;margin-top:11px}
-summary{cursor:pointer;font-size:.88rem;color:var(--ink-2);font-weight:500}
-pre{font-family:var(--mono);font-size:.78rem;background:var(--surface-2);padding:11px;
-  border-radius:4px;overflow-x:auto;color:var(--ink-2);margin:9px 0 0}
-a{color:var(--accent)}
-.hidden{display:none!important}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;
+  margin-bottom:16px}
+.metric{background:var(--surface-2);border-radius:10px;padding:12px 14px}
+.metric .k{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3)}
+.metric .v{font-size:1.2rem;font-weight:700;text-transform:capitalize;margin-top:2px}
+.metric .v.yes{color:var(--ok)}
+.metric .v.no{color:var(--alert)}
+.summary{margin:4px 0 0}
+h3{font-size:.9rem;font-weight:700;margin:22px 0 10px}
+details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+summary{cursor:pointer;font-size:.86rem;color:var(--ink-2);font-weight:600}
+details p{margin:8px 0 0;font-size:.88rem;color:var(--ink-2)}
+pre{font-family:var(--mono);font-size:.76rem;background:var(--surface-2);padding:11px;
+  border-radius:8px;overflow-x:auto;color:var(--ink-2);margin:8px 0 0;white-space:pre-wrap;
+  overflow-wrap:anywhere}
+.foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.foot a{font-weight:700;font-size:.88rem;margin-left:auto}
+@media (max-width:560px){
+  .brand small{display:none}
+  .wrap{padding-top:22px} h1{font-size:1.4rem} .card{padding:18px 16px}
+  .top nav a{padding:6px 8px} .turn{max-width:92%} .foot a{margin-left:0}
+}
 </style>
 </head>
 <body>
-<nav class="nav"><div class="nav-inner">
-  <a href="/" class="on">Console</a>
-  <a href="/overview">How it works</a>
-</div></nav>
-<div class="wrap">
-  <h1>Care Outreach Console</h1>
-  <p class="sub">Outbound healthcare voice agent · LiveKit + Opik</p>
+<header class="top"><div class="top-inner">
+  <a class="brand" href="/"><span class="mark">C</span>
+    <span><b>Clinik Care</b><small>Voice outreach console</small></span></a>
+  <nav><a href="/" class="on">Console</a><a href="/overview">How it works</a></nav>
+</div></header>
 
-  <div class="card" id="setup">
-    <label for="patient">Patient</label>
-    <select id="patient"></select>
-    <div id="bios" style="margin-top:16px"></div>
-    <div id="blocked" class="note bad hidden" style="margin-top:16px"></div>
-    <div class="row" style="margin-top:20px">
-      <button class="primary" id="start">Start call</button>
-      <span id="status"><span class="dot"></span>Ready</span>
+<main class="wrap">
+  <h1>Patient outreach call</h1>
+  <p class="lede">Pick a patient and start a call. Riya, the AI care coordinator, confirms who
+    she is speaking to, explains the lab results and tries to book a consultation. When the call
+    ends, the analysis and evaluation scores are read back from Opik.</p>
+
+  <section class="card" id="setup">
+    <div class="card-head"><div><div class="step">Step 1</div><h2>Choose a patient</h2></div></div>
+    <div class="patients" id="patients" role="group" aria-label="Patients">
+      <p class="empty">Loading patients…</p>
     </div>
-    <p style="margin:14px 0 0;font-size:.85rem;color:var(--ink-3)">
-      Use headphones. On speakers the agent hears its own voice through your microphone and
-      starts replying to itself.</p>
-  </div>
+    <div class="results hidden" id="results">
+      <div class="results-title" id="resultsTitle"></div>
+      <div id="bios"></div>
+    </div>
+    <div id="blocked" class="note bad hidden"></div>
+    <div class="actions">
+      <button class="btn primary" id="start" disabled>Start call</button>
+      <span id="status"><span class="dot"></span><span id="statusText">Ready</span></span>
+    </div>
+    <div class="note info">Use headphones. On speakers the agent hears its own voice through
+      your microphone and starts replying to itself.</div>
+  </section>
 
-  <div class="card hidden" id="callCard">
-    <div class="row" style="justify-content:space-between;margin-bottom:16px">
-      <h2 style="margin:0">Live transcript</h2>
-      <button class="danger" id="end">End call</button>
+  <section class="card hidden" id="callCard">
+    <div class="card-head">
+      <div><div class="step">Step 2</div><h2>Live transcript</h2></div>
+      <div class="actions" style="margin:0">
+        <span class="timer" id="timer">00:00</span>
+        <button class="btn danger" id="end">End call</button>
+      </div>
     </div>
     <div id="transcript"><p class="empty">Waiting for the agent to speak…</p></div>
-  </div>
+  </section>
 
-  <div class="card hidden" id="analysisCard">
-    <h2>Post-call analysis</h2>
+  <section class="card hidden" id="analysisCard">
+    <div class="card-head"><div><div class="step">Step 3</div><h2>Post-call analysis</h2></div></div>
     <div id="analysisBody"><p class="empty">Analysing the call…</p></div>
-  </div>
-</div>
+  </section>
+</main>
 
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-let patients = [], room = null, currentRoom = null, myIdentity = null;
+// Everything rendered below comes from the LLM, the transcript or patient data, so it is escaped.
+const esc = v => String(v ?? '').replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const label = s => esc(String(s ?? '—').replace(/_/g, ' '));
+// Appointment times are ISO strings in clinic time; show them the way a person would say them.
+const when = iso => {
+  const d = new Date(iso);
+  return isNaN(d) ? esc(iso) : esc(d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short',
+    hour: 'numeric', minute: '2-digit' }));
+};
+
+let patients = [], selectedId = null;
+let room = null, currentRoom = null, myIdentity = null, agentName = 'Agent';
+let callToken = 0, timerHandle = null, endMessage = null;
 
 function setStatus(text, kind) {
-  $('status').innerHTML = `<span class="dot ${kind || ''}"></span>${text}`;
+  $('status').querySelector('.dot').className = `dot ${kind || ''}`;
+  $('statusText').textContent = text;
 }
 
 function showUnblock() {
   if ($('unblock')) return;
   const btn = document.createElement('button');
   btn.id = 'unblock';
-  btn.className = 'primary';
+  btn.className = 'btn ghost';
   btn.textContent = 'Enable sound';
-  btn.style.marginLeft = '12px';
   btn.onclick = async () => {
     try { await room?.startAudio(); } catch (_) {}
     document.querySelectorAll('audio').forEach(a => a.play().catch(() => {}));
@@ -163,25 +233,44 @@ function showUnblock() {
 }
 
 async function loadPatients() {
-  patients = await (await fetch('/api/patients')).json();
-  $('patient').innerHTML = patients
-    .map(p => `<option value="${p.id}">${p.id} · ${p.name}</option>`).join('');
-  renderPatient();
+  try {
+    patients = await (await fetch('/api/patients')).json();
+  } catch (_) {
+    $('patients').innerHTML = '<p class="empty">Could not load patients. Is the server running?</p>';
+    return;
+  }
+  $('patients').innerHTML = patients.map(p => `
+    <button class="patient" type="button" data-id="${esc(p.id)}" aria-pressed="false">
+      <span class="row1"><span class="name">${esc(p.name)}</span>
+        ${p.blocked ? '<span class="tag blocked">Do not call</span>'
+                    : '<span class="tag ok">Ready</span>'}</span>
+      <span class="meta">${esc(p.care_program)} · ${esc(p.clinician)}</span>
+      <span class="id">${esc(p.id)} · ${esc(p.phone)}</span>
+    </button>`).join('');
+  $('patients').querySelectorAll('.patient').forEach(el =>
+    el.addEventListener('click', () => selectPatient(el.dataset.id)));
+  const first = patients.find(p => !p.blocked) || patients[0];
+  if (first) selectPatient(first.id);
 }
 
-function renderPatient() {
-  const p = patients.find(x => x.id === $('patient').value);
+function selectPatient(id) {
+  if (room) return;  // the patient cannot change mid-call
+  const p = patients.find(x => x.id === id);
   if (!p) return;
+  selectedId = id;
+  $('patients').querySelectorAll('.patient').forEach(el =>
+    el.setAttribute('aria-pressed', String(el.dataset.id === id)));
+  $('results').classList.remove('hidden');
+  $('resultsTitle').textContent = `Lab results for ${p.name}`;
   $('bios').innerHTML = p.biomarkers.map(b => `
     <div class="bio">
-      <span>${b.name}</span>
-      <b>${b.value} ${b.unit}</b>
-      <span class="pill ${b.status === 'high' || b.status === 'low' ? 'hi' : 'flat'}">${b.status}</span>
-      <span style="opacity:.65">normal ${b.reference} · collected ${b.collected}</span>
-    </div>`).join('');
-  const blocked = $('blocked');
-  blocked.classList.toggle('hidden', !p.blocked);
-  if (p.blocked) blocked.textContent = p.blocked_reason + ' — the console refuses to dial.';
+      <span class="what">${esc(b.name)} <span class="tag ${
+        ['high', 'low'].includes(b.status) ? 'high' : esc(b.status)}">${esc(b.status)}</span></span>
+      <span class="val">${esc(b.value)} ${esc(b.unit)}</span>
+      <span class="ref">Normal ${esc(b.reference)} · collected ${esc(b.collected)}</span>
+    </div>`).join('') || '<p class="empty">No results on file.</p>';
+  $('blocked').classList.toggle('hidden', !p.blocked);
+  $('blocked').textContent = p.blocked ? `${p.blocked_reason} — the console will not call.` : '';
   $('start').disabled = p.blocked;
 }
 
@@ -190,7 +279,7 @@ function renderPatient() {
 // rewritten until a final segment closes it. Otherwise every revision leaves its own bubble.
 const live = { agent: null, user: null };
 
-function renderSegment(streamId, who, text, final) {
+function renderSegment(who, text, final) {
   const box = $('transcript');
   box.querySelector('.empty')?.remove();
 
@@ -205,17 +294,15 @@ function renderSegment(streamId, who, text, final) {
   }
 
   let entry = live[who];
-
   // A revision of the utterance already on screen either repeats it or extends it. Anything else
-  // is a genuinely new utterance and earns its own bubble. Without this every interim result and
-  // every duplicated final leaves a bubble behind.
+  // is a genuinely new utterance and earns its own bubble.
   const revises = entry && (clean === entry.text || clean.startsWith(entry.text));
 
   if (!entry || !revises) {
     const el = document.createElement('div');
     el.className = `turn ${who} interim`;
-    el.innerHTML =
-      `<span class="who">${who === 'agent' ? 'Asha' : 'You'}</span><span class="t"></span>`;
+    el.innerHTML = '<span class="who"></span><span class="t"></span>';
+    el.querySelector('.who').textContent = who === 'agent' ? agentName : 'You';
     box.appendChild(el);
     entry = { el, text: '' };
     live[who] = entry;
@@ -227,8 +314,20 @@ function renderSegment(streamId, who, text, final) {
   box.scrollTop = box.scrollHeight;
 }
 
+function startTimer() {
+  const started = Date.now();
+  clearInterval(timerHandle);
+  $('timer').textContent = '00:00';
+  timerHandle = setInterval(() => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    $('timer').textContent =
+      `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }, 1000);
+}
+
 async function startCall() {
-  const patientId = $('patient').value;
+  const patientId = selectedId;
+  if (!patientId) return;
   $('start').disabled = true;
   setStatus('Connecting…', 'busy');
 
@@ -246,10 +345,13 @@ async function startCall() {
     return;
   }
 
+  callToken += 1;
   currentRoom = info.room;
   myIdentity = `patient-${patientId}`;
+  agentName = info.agent || 'Agent';
   live.agent = live.user = null;
   $('transcript').innerHTML = '<p class="empty">Waiting for the agent to speak…</p>';
+  $('end').disabled = false;
   $('callCard').classList.remove('hidden');
   $('analysisCard').classList.add('hidden');
 
@@ -269,7 +371,7 @@ async function startCall() {
   });
 
   room.on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, () => {
-    if (!room.canPlaybackAudio) showUnblock();
+    if (!room?.canPlaybackAudio) showUnblock();
   });
 
   try {
@@ -284,30 +386,30 @@ async function startCall() {
     });
     try { await room.startAudio(); } catch (_) { showUnblock(); }
     attachTranscription();
-    setStatus(`In call with ${info.patient} · ${info.room}`, 'on');
+    startTimer();
+    setStatus(`In call with ${info.patient}`, 'on');
   } catch (err) {
+    // Usually a denied microphone. The agent is already dispatched, so close the room too.
     console.error(err);
-    setStatus('Could not connect: ' + (err?.message || err), '');
-    $('start').disabled = false;
+    await endCall(`Could not start: ${err?.message || err}`);
   }
 }
 
 // Transcription reaches the browser one of two ways depending on the client SDK version, so
-// both are wired up. Each stream id is a single utterance being revised as it is recognised.
+// both are wired up. Each stream is a single utterance being revised as it is recognised.
 function attachTranscription() {
   const who = p => (p?.identity === myIdentity ? 'user' : 'agent');
 
   if (typeof room.registerTextStreamHandler === 'function') {
     try {
       room.registerTextStreamHandler('lk.transcription', async (reader, participant) => {
-        const id = reader.info?.id || crypto.randomUUID();
         const speaker = who(participant);
         let text = '';
         for await (const chunk of reader) {
           text += chunk;
-          renderSegment(id, speaker, text, false);
+          renderSegment(speaker, text, false);
         }
-        renderSegment(id, speaker, text, true);
+        renderSegment(speaker, text, true);
       });
       return;
     } catch (err) {
@@ -316,96 +418,109 @@ function attachTranscription() {
   }
 
   room.on(LivekitClient.RoomEvent.TranscriptionReceived, (segments, participant) => {
-    for (const seg of segments) {
-      renderSegment(seg.id, who(participant), seg.text, seg.final);
-    }
+    for (const seg of segments) renderSegment(who(participant), seg.text, seg.final);
   });
 }
 
-async function endCall() {
+async function endCall(message) {
+  // Disconnecting fires finishCall itself, so the message has to be in place first.
+  endMessage = typeof message === 'string' ? message : null;
   $('end').disabled = true;
   setStatus('Ending call…', 'busy');
+  const roomName = currentRoom;
   try { await room?.disconnect(); } catch (_) {}
-  await fetch('/api/end', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ room: currentRoom })
-  }).catch(() => {});
+  if (roomName) {
+    await fetch('/api/end', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room: roomName })
+    }).catch(() => {});
+  }
   finishCall();
 }
 
+// Runs once per call, whether the patient, the agent or an error ended it.
 function finishCall() {
   if (!currentRoom) return;
+  const roomName = currentRoom;
+  currentRoom = null;
+  room = null;
+  clearInterval(timerHandle);
   document.querySelectorAll('audio').forEach(a => a.remove());
   $('unblock')?.remove();
-  setStatus('Call ended', '');
-  $('end').disabled = false;
-  $('start').disabled = false;
+  setStatus(endMessage || 'Call ended', '');
+  endMessage = null;
+  $('end').disabled = true;
+  $('start').disabled = !!patients.find(p => p.id === selectedId)?.blocked;
   $('analysisCard').classList.remove('hidden');
-  $('analysisBody').innerHTML = '<p class="empty">Analysing the call and writing to Opik…</p>';
-  pollAnalysis(currentRoom, 0);
+  $('analysisBody').innerHTML = '<p class="empty">Analysing the call and writing it to Opik…</p>';
+  pollAnalysis(roomName, callToken, 0);
 }
 
-async function pollAnalysis(roomName, attempt) {
-  if (attempt > 40) {
+async function pollAnalysis(roomName, token, attempt) {
+  if (token !== callToken) return;  // a newer call has started; drop this one
+  if (attempt > 60) {
     $('analysisBody').innerHTML =
-      '<p class="empty">Analysis is taking longer than expected. Check the worker logs.</p>';
+      '<p class="empty">Analysis is taking longer than expected. Check the agent worker logs.</p>';
     return;
   }
   try {
     const data = await (await fetch(`/api/analysis?room=${encodeURIComponent(roomName)}`)).json();
+    if (token !== callToken) return;
     if (data.ready) return renderAnalysis(data);
   } catch (_) {}
-  setTimeout(() => pollAnalysis(roomName, attempt + 1), 3000);
+  setTimeout(() => pollAnalysis(roomName, token, attempt + 1), 3000);
 }
 
 function renderAnalysis(d) {
-  const yn = v => v ? 'Yes' : 'No';
+  const yn = v => `<div class="v ${v ? 'yes' : 'no'}">${v ? 'Yes' : 'No'}</div>`;
+  const score = v => (typeof v === 'number' ? v.toFixed(2) : esc(v));
   const scores = Object.entries(d.scores || {});
+  const violations = d.safety_violations || [];
+  const corrections = d.corrections || [];
+  const tools = d.tools || [];
+  const appt = d.appointment;
   $('analysisBody').innerHTML = `
     <div class="metrics">
-      <div class="metric"><div class="k">Outcome</div>
-        <div class="v">${(d.outcome || '—').replace(/_/g, ' ')}</div></div>
-      <div class="metric"><div class="k">Appointment booked</div>
-        <div class="v">${yn(d.appointment_booked)}</div></div>
-      <div class="metric"><div class="k">Identity verified</div>
-        <div class="v">${yn(d.identity_verified)}</div></div>
-      <div class="metric"><div class="k">Sentiment</div>
-        <div class="v">${d.sentiment || '—'}</div></div>
+      <div class="metric"><div class="k">Outcome</div><div class="v">${label(d.outcome)}</div></div>
+      <div class="metric"><div class="k">Appointment booked</div>${yn(d.appointment_booked)}</div>
+      <div class="metric"><div class="k">Identity verified</div>${yn(d.identity_verified)}</div>
+      <div class="metric"><div class="k">Sentiment</div><div class="v">${label(d.sentiment)}</div></div>
     </div>
 
-    <p>${d.summary || ''}</p>
-    ${d.next_action ? `<p><strong>Next action ·</strong> ${d.next_action}</p>` : ''}
+    ${appt ? `<div class="note good">Booked with ${esc(appt.clinician)} · ${
+      when(appt.starts_at)} · ${esc(appt.confirmation_id)}</div>` : ''}
+    <p class="summary">${esc(d.summary)}</p>
+    ${d.next_action ? `<p><strong>Next action:</strong> ${esc(d.next_action)}</p>` : ''}
 
-    ${d.safety_violations.length
-      ? `<div class="note bad">Safety violations: ${d.safety_violations.join('; ')}</div>`
+    ${violations.length
+      ? `<div class="note bad">Safety violations: ${violations.map(esc).join('; ')}</div>`
       : '<div class="note good">No safety violations found</div>'}
 
-    ${d.corrections.length ? `<div class="note bad">Reconciled against the tool record:<br>${
-      d.corrections.map(c => '· ' + c).join('<br>')}</div>` : ''}
+    ${corrections.length ? `<div class="note bad">Corrected against the tool record:<br>${
+      corrections.map(c => '· ' + esc(c)).join('<br>')}</div>` : ''}
 
-    ${scores.length ? `<h2 style="margin-top:22px">Evaluation</h2>
+    ${scores.length ? `<h3>Evaluation scores</h3>
       <div class="metrics">${scores.map(([k, v]) => `
-        <div class="metric"><div class="k">${k.replace(/_/g, ' ')}</div>
-          <div class="v">${v}</div></div>`).join('')}</div>
+        <div class="metric"><div class="k">${label(k)}</div><div class="v">${score(v)}</div></div>`
+      ).join('')}</div>
       ${Object.entries(d.score_reasons || {}).map(([k, why]) =>
-        `<details><summary>Why: ${k.replace(/_/g, ' ')}</summary><p>${why}</p></details>`).join('')}`
+        `<details><summary>Why: ${label(k)}</summary><p>${esc(why)}</p></details>`).join('')}`
       : ''}
 
-    ${d.tools.length ? `<details><summary>Tool calls (${d.tools.length})</summary>
-      ${d.tools.map(t => `<pre>${t.name}\n${JSON.stringify(t.arguments, null, 2)}\n→ ${
-        JSON.stringify(t.result, null, 2)}</pre>`).join('')}</details>` : ''}
+    ${tools.length ? `<details><summary>Tool calls (${tools.length})</summary>
+      ${tools.map(t => `<pre>${esc(t.name)}\n${esc(JSON.stringify(t.arguments, null, 2))}\n→ ${
+        esc(JSON.stringify(t.result, null, 2))}</pre>`).join('')}</details>` : ''}
 
-    <p style="margin-top:18px">
-      <span class="pill flat">analysis: ${d.source || '—'}</span>
-      <span class="pill ${d.recording ? 'ok' : 'flat'}">recording ${
+    <div class="foot">
+      <span class="tag flat">analysis: ${esc(d.source || '—')}</span>
+      <span class="tag ${d.recording ? 'ok' : 'flat'}">recording ${
         d.recording ? 'attached' : 'not attached'}</span>
-      &nbsp;<a href="${d.trace_url}" target="_blank" rel="noopener">Open trace in Opik →</a>
-    </p>`;
+      ${d.trace_url ? `<a href="${esc(d.trace_url)}" target="_blank" rel="noopener">Open trace in Opik →</a>` : ''}
+    </div>`;
 }
 
-$('patient').addEventListener('change', renderPatient);
 $('start').addEventListener('click', startCall);
-$('end').addEventListener('click', endCall);
+$('end').addEventListener('click', () => endCall());
 loadPatients();
 </script>
 </body>

@@ -27,6 +27,7 @@ from aiohttp import web  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
 from livekit import api  # noqa: E402
 
+from agent.prompts import AGENT_PERSONA, CLINIC_NAME  # noqa: E402
 from observability import opik_reader as reader  # noqa: E402
 from services import patients  # noqa: E402
 
@@ -81,9 +82,18 @@ async def list_patients(_: web.Request) -> web.Response:
     ])
 
 
+async def _json_body(request: web.Request) -> dict:
+    try:
+        body = await request.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
 async def start_call(request: web.Request) -> web.Response:
-    body = await request.json()
-    patient_id = body.get("patient_id", "P001")
+    patient_id = (await _json_body(request)).get("patient_id")
+    if not isinstance(patient_id, str) or not patient_id:
+        return web.json_response({"error": "patient_id is required"}, status=400)
 
     try:
         patient = patients.get_patient(patient_id)
@@ -128,13 +138,15 @@ async def start_call(request: web.Request) -> web.Response:
         "token": token,
         "url": os.getenv("LIVEKIT_URL"),
         "patient": patient.name,
+        "agent": AGENT_PERSONA,
     })
 
 
 async def end_call(request: web.Request) -> web.Response:
-    room_name = (await request.json()).get("room")
-    if not room_name:
-        return web.json_response({"error": "room is required"}, status=400)
+    room_name = (await _json_body(request)).get("room")
+    if not isinstance(room_name, str) or not room_name.startswith("web-"):
+        # Only console rooms: this endpoint is public and must not end other calls.
+        return web.json_response({"error": "a console room name is required"}, status=400)
     try:
         async with api.LiveKitAPI() as lk:
             await lk.room.delete_room(api.DeleteRoomRequest(room=room_name))
@@ -156,7 +168,7 @@ async def analysis(request: web.Request) -> web.Response:
         if summary is None:
             return web.json_response({"ready": False})
         detail = await asyncio.to_thread(reader.get_call, summary.trace_id)
-        project_id, _ = await asyncio.to_thread(reader.list_calls, 1)
+        project_id = await asyncio.to_thread(reader.project_id)
     except Exception as exc:
         logger.exception("could not read analysis")
         return web.json_response({"ready": False, "error": str(exc)})
@@ -207,6 +219,6 @@ if __name__ == "__main__":
         print(f"error: {', '.join(missing)} not set in .env", file=sys.stderr)
         raise SystemExit(1)
 
-    print(f"\n  Care Outreach Console → http://localhost:{PORT}")
+    print(f"\n  {CLINIC_NAME} · Voice Agent Console → http://localhost:{PORT}")
     print("  (the agent worker must be running: uv run python main.py dev)\n")
     web.run_app(build_app(), host="0.0.0.0", port=PORT, print=None)

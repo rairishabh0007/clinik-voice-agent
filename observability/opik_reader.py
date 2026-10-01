@@ -1,7 +1,7 @@
 """Read completed calls back out of Opik.
 
 The write side (opik_tracer.py) is the standalone deliverable and stays free of this. This is the
-read side, used by the dashboard: the traces Opik already holds are the system of record for a
+read side, used by the web console: the traces Opik already holds are the system of record for a
 call, so nothing is stored twice.
 """
 
@@ -67,15 +67,8 @@ def trace_url(project_id: str, trace_id: str) -> str:
     return f"{_logs_url(project_id)}?logsType=traces&trace={trace_id}"
 
 
-def threads_url(project_id: str) -> str:
-    return f"{_logs_url(project_id)}?logsType=threads"
-
-
-def _call_traces(rest, size: int) -> tuple[str, list[Any]]:
-    """The project id, and the call-level traces among its most recent `size` traces."""
-    project_id = str(_project(rest).id)
-    page = rest.traces.get_traces_by_project(project_id=project_id, size=size)
-    return project_id, [t for t in page.content or [] if t.name == "outbound_call"]
+def project_id() -> str:
+    return str(_project(_client().rest_client).id)
 
 
 def _summarise(trace: Any) -> CallSummary:
@@ -96,18 +89,12 @@ def _summarise(trace: Any) -> CallSummary:
     )
 
 
-def list_calls(limit: int = 25) -> tuple[str, list[CallSummary]]:
-    """Most recent calls, newest first. Returns (project_id, calls)."""
-    project_id, traces = _call_traces(_client().rest_client, 200)
-    calls = sorted(map(_summarise, traces), key=lambda c: c.started_at or datetime.min, reverse=True)
-    return project_id, calls[:limit]
-
-
 def find_call_by_room(room_name: str) -> CallSummary | None:
     """Locate the call trace for a room. Returns None until the agent has finished logging it."""
-    _, traces = _call_traces(_client().rest_client, 100)
-    for trace in traces:
-        if (trace.metadata or {}).get("call_id") == room_name:
+    rest = _client().rest_client
+    page = rest.traces.get_traces_by_project(project_id=str(_project(rest).id), size=100)
+    for trace in page.content or []:
+        if trace.name == "outbound_call" and (trace.metadata or {}).get("call_id") == room_name:
             return _summarise(trace)
     return None
 

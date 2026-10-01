@@ -33,6 +33,7 @@ from analysis.post_call import analyse_call  # noqa: E402
 from observability.opik_tracer import OpikCallTracer  # noqa: E402
 from services import patients, scheduler  # noqa: E402
 from services.call_state import CallState  # noqa: E402
+from services.model_config import llm_config  # noqa: E402
 
 load_dotenv()
 
@@ -93,8 +94,8 @@ async def replay(fixture: Path, audio: str | None, use_opik: bool) -> int:
         variables=variables,
         metadata={
             "patient_id": patient.id,
-            "llm_model": "gpt-4o-mini",
-            "llm_provider": "openai",
+            "llm_model": llm_config().model,
+            "llm_provider": llm_config().provider,
             "mode": "replay",
             "source_fixture": fixture.name,
         },

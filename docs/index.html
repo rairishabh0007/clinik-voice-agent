@@ -141,9 +141,9 @@ ul.prose b{font-weight:600;color:var(--ink)}
     tool call, then analyses the call and ships the whole thing — transcript, audio, tool results,
     analysis and evaluation scores — into <strong>Opik</strong> through a single drop-in module.</p>
   <div class="links">
-    <span><b>Code</b> this repository</span>
+    <a href="https://github.com/rairishabh0007/clinik-voice-agent"><b>Code</b> github.com/rairishabh0007/clinik-voice-agent</a>
     <span><b>Agent</b> LiveKit Cloud · ap-south</span>
-    <a href="https://voice-livekit-m9hu.onrender.com"><b>Live console</b> voice-livekit-m9hu.onrender.com</a>
+    <a href="https://clinik-care-console.onrender.com"><b>Live console</b> clinik-care-console.onrender.com</a>
     <span><b>Traces</b> Opik · livekit-voice-agent</span>
   </div>
 </header>
@@ -313,7 +313,7 @@ ul.prose b{font-weight:600;color:var(--ink)}
       scripts/replay_call.py</code> — the analysis still completes, nothing is sent.</li>
     <li><b>Use headphones for a browser call.</b> On speakers the agent hears itself and starts
       replying to its own voice.</li>
-    <li><b>Tests:</b> <code>uv run --group dev pytest</code> — 34 tests over the scheduler
+    <li><b>Tests:</b> <code>uv run --group dev pytest</code> — 36 tests over the scheduler
       (conflicts, alternatives, closed days, relative dates, booking horizon) and the analysis
       reconciliation (the model claiming a booking that did not happen, missing one that did, and
       every deterministic override).</li>
@@ -325,7 +325,7 @@ ul.prose b{font-weight:600;color:var(--ink)}
       <code>lk agent deploy</code> for later versions. A <code>Dockerfile</code> and
       <code>.python-version</code> are in the repository; model weights are fetched at build time
       so the first call is not delayed.</li>
-    <li><b>Console → Render.</b> Live at <a href="https://voice-livekit-m9hu.onrender.com">voice-livekit-m9hu.onrender.com</a>.
+    <li><b>Console → Render.</b> Live at <a href="https://clinik-care-console.onrender.com">clinik-care-console.onrender.com</a>.
       Python 3, build <code>pip install .</code>, start <code>python web/server.py</code>, free
       instance. Seven environment variables; the agent's speech stack is deliberately excluded so
       the console stays inside a 512 MB instance. The free tier sleeps after 15 minutes idle, so

@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
-CLINIC_NAME = "Sehat Clinic"
+CLINIC_NAME = "Clinik Care"
+AGENT_PERSONA = "Riya"
 
 _BASE = """\
-You are Asha, a care coordinator calling on behalf of {clinic}. You are speaking to a patient on \
+You are {agent}, a care coordinator calling on behalf of {clinic}. You are speaking to a patient on \
 the phone. This is an outbound call that the patient is not expecting.
 
 # Your goal
@@ -76,6 +77,7 @@ Begin by greeting the patient and asking for {patient_name}."""
 def build_instructions(variables: dict[str, Any], *, today: str) -> str:
     staleness = variables.get("staleness_note")
     return _BASE.format(
+        agent=AGENT_PERSONA,
         clinic=CLINIC_NAME,
         clinician=variables.get("ordering_clinician") or "your doctor",
         patient_name=variables.get("patient_name") or "the patient",
@@ -94,13 +96,13 @@ def greeting(patient_name: str) -> str:
     ("contents is not specified"). Saying it is faster and cannot fail.
     """
     return (
-        f"Hello, good morning. This is Asha calling from {CLINIC_NAME}. "
+        f"Hello, this is {AGENT_PERSONA} calling from {CLINIC_NAME}. "
         f"Am I speaking with {patient_name}?"
     )
 
 
 VOICEMAIL_MESSAGE = (
-    "Hello, this is Asha calling from {clinic} for {first_name}. "
+    "Hello, this is {agent} calling from {clinic} for {first_name}. "
     "We have an update from your recent visit and would like to speak with you. "
     "Please call us back at your convenience. Thank you."
 )

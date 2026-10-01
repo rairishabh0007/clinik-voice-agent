@@ -2,7 +2,7 @@
 # (`lk agent deploy`) — a persistent worker is not a web service and does not belong here.
 services:
   - type: web
-    name: care-outreach-console
+    name: clinik-care-console
     runtime: python
     plan: free
     buildCommand: pip install .

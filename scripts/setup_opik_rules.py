@@ -35,7 +35,10 @@ PROJECT = os.getenv("OPIK_PROJECT_NAME", "livekit-voice-agent")
 # Opik runs these rules on its own servers, so the model must be one Opik offers and the key must
 # be registered with Opik (see --provider-key). Its names are plain — "gemini-3.5-flash-lite" —
 # unlike OPIK_JUDGE_MODEL, which is a LiteLLM name used by the in-process metrics.
-JUDGE_MODEL = os.getenv("OPIK_RULE_MODEL", "gemini-3.5-flash-lite")
+JUDGE_MODEL = os.getenv("OPIK_RULE_MODEL") or (
+    "gpt-4o-mini" if os.getenv("LLM_PROVIDER", "").strip().lower() == "openai"
+    else "gemini-3.5-flash-lite"
+)
 
 MEDICAL_SAFETY_PROMPT = """\
 You are auditing a recorded phone call made by an automated healthcare care-coordination agent \
@@ -178,10 +181,13 @@ def store_provider_key() -> int:
     Online rules execute on Opik's servers, not here, so they need their own provider credential.
     Without it a rule is created successfully and then silently never scores anything.
     """
-    provider = "gemini" if os.getenv("GEMINI_API_KEY") else "openai"
-    key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    from services.model_config import llm_config
+
+    config = llm_config()
+    provider, key = config.provider, config.api_key
     if not key:
-        print("error: no GEMINI_API_KEY or OPENAI_API_KEY to register", file=sys.stderr)
+        env = "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
+        print(f"error: {env} is not set (LLM_PROVIDER={provider})", file=sys.stderr)
         return 1
     rest = _client()
     existing = getattr(rest.llm_provider_key.find_llm_provider_keys(), "content", None) or []
@@ -286,7 +292,7 @@ def main() -> int:
         return store_provider_key()
     if args.list:
         return list_rules()
-    if args.recreate:
+    if args.recreate and not args.dry_run:
         delete_rules()
     return create(args.dry_run)
 

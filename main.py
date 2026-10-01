@@ -87,24 +87,24 @@ def _build_llm() -> Any:
 def _parse_metadata(ctx: JobContext) -> dict[str, Any]:
     raw = (ctx.job.metadata or "").strip()
     try:
-        return json.loads(raw) if raw else {}
+        data = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
         logger.error("job metadata is not valid JSON: %r", raw)
         return {}
+    if not isinstance(data, dict):
+        logger.error("job metadata is not a JSON object: %r", raw)
+        return {}
+    return data
 
 
-ROOM_PREFIXES = ("call-", "web-")
+WEB_ROOM_PREFIX = "web-"
 
 
 def _patient_from_room(room_name: str) -> str | None:
-    """Calls that arrive without job metadata carry the patient id in the room name.
-
-    A SIP dispatch rule names the room after the URI user part (`call-P001-a1b2c3`); the web
-    console names it the same way (`web-P001-a1b2c3`). Either way the id is the first segment.
-    """
-    for prefix in ROOM_PREFIXES:
-        if room_name.startswith(prefix):
-            return room_name[len(prefix):].split("-")[0] or None
+    """A web-console room is named `web-P001-a1b2c3`, so a job without metadata can still find
+    its patient from the first segment."""
+    if room_name.startswith(WEB_ROOM_PREFIX):
+        return room_name[len(WEB_ROOM_PREFIX):].split("-")[0] or None
     return None
 
 
@@ -126,11 +126,8 @@ async def entrypoint(ctx: JobContext) -> None:
     patient_id = (
         dial_info.get("patient_id") or _patient_from_room(ctx.room.name) or DEFAULT_PATIENT
     )
-    # Calls where someone else brings the patient to us: Twilio bridged them in over SIP, or they
-    # joined from the browser console. Either way we wait for them rather than dialling.
-    twilio_bridged = not phone_number and ctx.room.name.startswith("call-")
-    web_call = not phone_number and ctx.room.name.startswith("web-")
-    awaits_participant = twilio_bridged or web_call
+    # The browser console brings the patient to us, so we wait for them rather than dialling.
+    web_call = not phone_number and ctx.room.name.startswith(WEB_ROOM_PREFIX)
 
     try:
         patient = patients.get_patient(patient_id)
@@ -185,10 +182,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "tts_provider": TTS_PROVIDER,
             "agent_name": AGENT_NAME,
             "mode": (
-                "outbound_sip" if phone_number
-                else "twilio_bridged" if twilio_bridged
-                else "web_call" if web_call
-                else "console"
+                "outbound_sip" if phone_number else "web_call" if web_call else "console"
             ),
         },
         tags=["voice", "outbound", "healthcare", f"patient:{patient.id}"],
@@ -198,6 +192,37 @@ async def entrypoint(ctx: JobContext) -> None:
     @session.on("error")
     def _on_session_error(event: Any) -> None:
         state.errors.append(str(getattr(event, "error", event)))
+
+    background: set[asyncio.Task[Any]] = set()
+
+    def run_in_background(coro: Any) -> None:
+        task = asyncio.create_task(coro)
+        background.add(task)
+        task.add_done_callback(background.discard)
+
+    async def hang_up(reason: str) -> None:
+        state.end_reason = reason
+        logger.info("hanging up %s: %s", ctx.room.name, reason)
+        try:
+            await ctx.delete_room()
+        except Exception:
+            logger.exception("failed to delete room")
+
+    # user_away_timeout only marks the caller "away"; it never ends the call. Check in once, and
+    # hang up if the line stays silent, so a dead line cannot hold the agent open.
+    silent_checks = 0
+
+    @session.on("user_state_changed")
+    def _on_user_state(event: Any) -> None:
+        nonlocal silent_checks
+        if event.new_state == "speaking":
+            silent_checks = 0
+        elif event.new_state == "away" and state.answered_at:
+            silent_checks += 1
+            if silent_checks == 1:
+                session.say("Are you still there?")
+            else:
+                run_in_background(hang_up("no_response"))
 
     @ctx.room.on("participant_disconnected")
     def _on_disconnect(participant: rtc.RemoteParticipant) -> None:
@@ -209,7 +234,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     agent = PatientOutreachAgent(state=state, variables=variables)
     room_input = RoomInputOptions()
-    if (phone_number or twilio_bridged) and os.getenv("LIVEKIT_URL", "").endswith("livekit.cloud"):
+    if phone_number and os.getenv("LIVEKIT_URL", "").endswith("livekit.cloud"):
         try:
             from livekit.plugins import noise_cancellation
 
@@ -236,9 +261,7 @@ async def entrypoint(ctx: JobContext) -> None:
         trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
         if not trunk_id:
             logger.error("SIP_OUTBOUND_TRUNK_ID is not set — cannot place an outbound call")
-            state.dial_error = "sip_failure"
-            ctx.shutdown()
-            return
+            return await abort("sip_failure")
 
         logger.info("dialling %s for patient %s", phone_number, patient.id)
         try:
@@ -264,7 +287,7 @@ async def entrypoint(ctx: JobContext) -> None:
             logger.exception("outbound dial failed")
             return await abort("sip_failure")
         logger.info("call answered by %s", phone_number)
-    elif awaits_participant:
+    elif web_call:
         logger.info("waiting for the caller to join %s", ctx.room.name)
         try:
             participant = await asyncio.wait_for(
@@ -276,8 +299,19 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info("caller %s joined", participant.identity)
     state.answered_at = datetime.now(timezone.utc)
 
+    if not phone_number:
+        # SIP enforces max_call_duration on the phone leg; other calls need their own cap.
+        async def cap_duration() -> None:
+            await asyncio.sleep(MAX_CALL_DURATION_S)
+            await hang_up("max_duration")
+
+        run_in_background(cap_duration())
+
     await session_task
-    await session.say(greeting(patient.name)).wait_for_playout()
+    try:
+        await session.say(greeting(patient.name)).wait_for_playout()
+    except RuntimeError:
+        logger.info("session closed before the greeting — the caller left early")
 
 
 def _duration(seconds: int) -> Any:

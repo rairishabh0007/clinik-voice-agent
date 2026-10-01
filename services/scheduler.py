@@ -17,10 +17,10 @@ from zoneinfo import ZoneInfo
 CLINIC_TZ = ZoneInfo("Asia/Kolkata")
 
 SPECIALTIES: dict[str, str] = {
-    "endocrinology": "Dr. Meera Iyer",
-    "general medicine": "Dr. Sanjay Rao",
-    "diabetology": "Dr. Meera Iyer",
-    "nutrition": "Ms. Kavya Nair",
+    "endocrinology": "Dr. Kavita Menon",
+    "general medicine": "Dr. Arjun Mehta",
+    "diabetology": "Dr. Kavita Menon",
+    "nutrition": "Ms. Pooja Desai",
 }
 DEFAULT_SPECIALTY = "endocrinology"
 
@@ -137,6 +137,17 @@ def resolve_date(text: str, *, today: date | None = None) -> date:
     raise SchedulingError(f"Could not understand the date {text!r}.")
 
 
+def check_bookable(day: date) -> None:
+    """Reject days outside the booking window, so the agent is told why rather than 'nothing free'."""
+    today = now().date()
+    if day < today:
+        raise SchedulingError(f"{day.isoformat()} is in the past.")
+    if day > today + timedelta(days=BOOKING_HORIZON_DAYS):
+        raise SchedulingError(
+            f"Appointments can only be booked up to {BOOKING_HORIZON_DAYS} days ahead."
+        )
+
+
 def _is_open(day: date) -> bool:
     return day.weekday() < 6  # closed Sundays
 
@@ -232,13 +243,7 @@ def book(
     win = normalise_window(preferred_window)
     day = resolve_date(preferred_date)
     current = now()
-
-    if day < current.date():
-        raise SchedulingError(f"{day.isoformat()} is in the past.")
-    if day > current.date() + timedelta(days=BOOKING_HORIZON_DAYS):
-        raise SchedulingError(
-            f"Appointments can only be booked up to {BOOKING_HORIZON_DAYS} days ahead."
-        )
+    check_bookable(day)
 
     if not _is_open(day):
         raise SlotUnavailable(

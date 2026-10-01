@@ -12,7 +12,7 @@ from typing import Any
 from livekit.agents import Agent, RunContext, function_tool, get_job_context
 from livekit.agents.llm import ToolError
 
-from agent.prompts import VOICEMAIL_MESSAGE, build_instructions
+from agent.prompts import AGENT_PERSONA, CLINIC_NAME, VOICEMAIL_MESSAGE, build_instructions
 from services import scheduler
 from services.call_state import CallState
 
@@ -90,6 +90,7 @@ class PatientOutreachAgent(Agent):
         args = _booking_args(preferred_date, preferred_window, specialty)
         try:
             day = scheduler.resolve_date(preferred_date)
+            scheduler.check_bookable(day)
             slots = scheduler.available_slots(specialty, on=day, window=preferred_window, limit=3)
         except scheduler.SchedulingError as exc:
             self._state.record_tool("check_availability", args, error=str(exc))
@@ -158,7 +159,7 @@ class PatientOutreachAgent(Agent):
         logger.info("voicemail detected for %s", self._state.patient.id)
 
         message = VOICEMAIL_MESSAGE.format(
-            clinic="Sehat Clinic", first_name=self._state.patient.first_name
+            agent=AGENT_PERSONA, clinic=CLINIC_NAME, first_name=self._state.patient.first_name
         )
         await context.session.say(message, allow_interruptions=False).wait_for_playout()
         await self._hangup()

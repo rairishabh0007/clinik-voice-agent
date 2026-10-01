@@ -161,6 +161,9 @@ def _reconcile(analysis: CallAnalysis, state: CallState) -> tuple[CallAnalysis, 
         data["identity_verified"] = state.identity_confirmed
 
     forced = state.deterministic_outcome()
+    if forced is None and data["outcome"] == "appointment_booked":
+        # No booking on record, so the model's outcome cannot stand; nothing else is certain.
+        forced = "incomplete"
     if forced and data["outcome"] != forced:
         corrections.append(f"outcome: model said {data['outcome']}, call record says {forced}")
         data["outcome"] = forced

@@ -7,9 +7,9 @@ Opik through a single drop-in module.
 
 | | |
 |---|---|
-| **Code** | this repository |
+| **Code** | https://github.com/rairishabh0007/clinik-voice-agent |
 | **Agent** | LiveKit Cloud, `ap-south` (`lk agent deploy`) |
-| **Live console** | https://voice-livekit-m9hu.onrender.com |
+| **Live console** | https://clinik-care-console.onrender.com |
 | **Traces** | Opik project `livekit-voice-agent` |
 
 ---
@@ -128,7 +128,7 @@ uv run python web/server.py                 # the console, on :8080
   analysis still completes, nothing is sent.
 - **Use headphones for a browser call.** On speakers the agent hears itself and starts replying to
   its own voice.
-- **Tests:** `uv run --group dev pytest` — 34 tests over the scheduler (conflicts, alternatives,
+- **Tests:** `uv run --group dev pytest` — 36 tests over the scheduler (conflicts, alternatives,
   closed days, relative dates, booking horizon) and the analysis reconciliation (the model claiming
   a booking that did not happen, missing one that did, and every deterministic override).
 
@@ -137,7 +137,7 @@ uv run python web/server.py                 # the console, on :8080
 - **Agent → LiveKit Cloud.** `lk agent create --secrets-file .env.agent`, then `lk agent deploy`
   for later versions. A `Dockerfile` and `.python-version` are in the repository; model weights are
   fetched at build time so the first call is not delayed.
-- **Console → Render.** Live at <https://voice-livekit-m9hu.onrender.com>. Python 3, build `pip install .`, start
+- **Console → Render.** Live at <https://clinik-care-console.onrender.com>. Python 3, build `pip install .`, start
   `python web/server.py`, free instance. Seven environment variables; the agent's speech stack is
   deliberately excluded so the console stays inside a 512 MB instance. The free tier sleeps after
   15 minutes idle, so the first request after a pause takes up to a minute.

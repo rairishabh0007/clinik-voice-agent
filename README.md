@@ -8,7 +8,7 @@ results, analysis, evaluation scores — into [Opik](https://www.comet.com/docs/
 The Opik integration is a single drop-in module, `observability/opik_tracer.py`. It costs the core
 application exactly one line.
 
-**Live console:** <https://voice-livekit-m9hu.onrender.com> · **Writeup:** [SUBMISSION.md](SUBMISSION.md)
+**Code:** <https://github.com/rairishabh0007/clinik-voice-agent> · **Live console:** <https://clinik-care-console.onrender.com> · **Writeup:** [SUBMISSION.md](SUBMISSION.md)
 (what was built, the constraints hit and why, and the production roadmap)
 
 ---
@@ -250,8 +250,9 @@ watch the call be refused.
 **Telephony** — no answer (SIP 408/480), busy or declined (486/603) and trunk failure (5xx) are each
 mapped to a distinct outcome and still produce an Opik trace; a call nobody answered is a result,
 not an absence of data. Patient hangs up mid-call → partial transcript still analysed. Silence →
-`user_away_timeout`. `max_call_duration` caps a stuck call. Provider errors mid-call are captured on
-the trace rather than killing the session.
+the agent checks in once ("Are you still there?") and hangs up if the line stays silent.
+`MAX_CALL_DURATION_S` caps every call — on the SIP leg for phone calls, in the worker for browser
+calls. Provider errors mid-call are captured on the trace rather than killing the session.
 
 **Clinical and privacy** — identity is confirmed through a tool before any health data is shared;
 if the wrong person answers nothing is disclosed. Voicemail gets a generic callback message only,
@@ -299,7 +300,7 @@ hosting is purpose-built for this and has a free allowance.
 uv run --group dev pytest
 ```
 
-34 tests over the two pieces of logic worth testing directly: the scheduler (conflicts,
+36 tests over the two pieces of logic worth testing directly: the scheduler (conflicts,
 alternatives, closed days, relative dates, the booking horizon) and the analysis reconciliation
 (the model claiming a booking that did not happen, missing one that did, and every deterministic
 override). Both are pure functions, so they need no LiveKit runtime.

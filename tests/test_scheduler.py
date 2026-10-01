@@ -72,7 +72,7 @@ class TestAvailability:
 class TestBooking:
     def test_books_and_returns_confirmation(self):
         day = _next_open_day()
-        booking = scheduler.book("P001", "Anita Sharma", "endocrinology", day.isoformat())
+        booking = scheduler.book("P001", "Sunita Joshi", "endocrinology", day.isoformat())
         assert booking.confirmation_id.startswith("APT-")
         assert booking.slot.start.date() == day
 
@@ -86,6 +86,15 @@ class TestBooking:
         yesterday = scheduler.now().date() - timedelta(days=1)
         with pytest.raises(scheduler.SchedulingError, match="past"):
             scheduler.book("P001", "A", "endocrinology", yesterday.isoformat())
+
+    def test_check_bookable_matches_booking_rules(self):
+        today = scheduler.now().date()
+        scheduler.check_bookable(today)
+        scheduler.check_bookable(today + timedelta(days=scheduler.BOOKING_HORIZON_DAYS))
+        with pytest.raises(scheduler.SchedulingError, match="past"):
+            scheduler.check_bookable(today - timedelta(days=1))
+        with pytest.raises(scheduler.SchedulingError, match="days ahead"):
+            scheduler.check_bookable(today + timedelta(days=scheduler.BOOKING_HORIZON_DAYS + 1))
 
     def test_beyond_horizon_rejected(self):
         far = scheduler.now().date() + timedelta(days=scheduler.BOOKING_HORIZON_DAYS + 5)

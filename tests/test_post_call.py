@@ -50,8 +50,20 @@ class TestReconciliation:
         assert result.appointment is None
         assert any("appointment_booked" in c for c in corrections)
 
+    def test_booked_outcome_without_a_booking_is_not_kept(self, state):
+        """Fixing the flag but keeping outcome=appointment_booked would contradict itself."""
+        state.answered_at = state.started_at
+        state.identity_confirmed = True
+        claimed = _analysis(
+            outcome="appointment_booked", appointment_booked=True, identity_verified=True
+        )
+        result, corrections = _reconcile(claimed, state)
+
+        assert result.outcome == "incomplete"
+        assert any(c.startswith("outcome:") for c in corrections)
+
     def test_model_missing_a_real_booking_is_corrected(self, state):
-        booking = scheduler.book("P001", "Anita Sharma", "endocrinology", _open_day())
+        booking = scheduler.book("P001", "Sunita Joshi", "endocrinology", _open_day())
         state.bookings.append(booking)
 
         result, corrections = _reconcile(_analysis(appointment_booked=False), state)
@@ -129,7 +141,7 @@ class TestFallbacks:
         state.voicemail_detected = True
         result = await analyse_call(
             state,
-            transcript=[{"role": "assistant", "text": "Hello, this is Asha."}],
+            transcript=[{"role": "assistant", "text": "Hello, this is Riya."}],
             client=ExplodingClient(),
         )
 

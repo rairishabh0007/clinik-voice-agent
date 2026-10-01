@@ -56,8 +56,6 @@ class CallState:
     errors: list[str] = field(default_factory=list)
 
     recording_path: str | None = None
-    recording_url: str | None = None
-    egress_id: str | None = None
 
     def record_tool(
         self,
@@ -132,7 +130,5 @@ class CallState:
             "booking": booking.to_dict() if booking else None,
             "tool_invocations": [t.to_dict() for t in self.tool_invocations],
             "errors": self.errors,
-            "recording_url": self.recording_url,
             "recording_path": self.recording_path,
-            "egress_id": self.egress_id,
         }
