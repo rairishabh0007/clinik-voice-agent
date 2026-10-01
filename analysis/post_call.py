@@ -17,7 +17,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from services.call_state import CallState
-from services.model_config import analysis_config
+from services.model_config import analysis_config, llm_config
 
 logger = logging.getLogger("post-call")
 
@@ -114,6 +114,28 @@ def _deterministic_only(state: CallState, reason: str) -> AnalysisResult:
     )
 
 
+def _facts_summary(state: CallState, reason: str) -> str:
+    """What the call record proves, for when no model could write the summary."""
+    facts: list[str] = []
+    if state.dial_error:
+        facts.append(f"The call did not connect ({state.dial_error.replace('_', ' ')}).")
+    elif state.voicemail_detected:
+        facts.append("The call reached voicemail; a callback message was left.")
+    else:
+        facts.append("Identity was confirmed." if state.identity_confirmed
+                     else "Identity was not confirmed.")
+    booking = state.confirmed_booking
+    if booking:
+        facts.append(f"Appointment booked with {booking.slot.clinician} on {booking.slot.spoken} "
+                     f"(confirmation {booking.confirmation_id}).")
+    if state.do_not_call_requested:
+        facts.append("The patient asked not to be called again.")
+    if state.transfer_requested:
+        facts.append(f"A transfer to a care manager was requested: {state.transfer_reason}.")
+    facts.append(f"No AI summary: {reason}; this is from the call record only.")
+    return " ".join(facts)
+
+
 def _default_next_action(outcome: str, state: CallState) -> str:
     return {
         "appointment_booked": "Send an appointment confirmation message to the patient.",
@@ -201,13 +223,25 @@ def _describe(exc: Exception) -> str:
     return text.splitlines()[0][:160] if text else type(exc).__name__
 
 
-async def _parse_with_retry(client: AsyncOpenAI, model: str, prompt: str) -> Any:
+def _analysis_models() -> list[str]:
+    """The analysis model, then the agent's model as a backup: a different model has its own
+    quota and is often up when the first is overloaded."""
+    models = [analysis_config().model]
+    backup = llm_config().model
+    return models + [backup] if backup and backup not in models else models
+
+
+async def _parse_with_retry(
+    client: AsyncOpenAI, models: list[str], prompt: str
+) -> tuple[Any, str]:
     """Free-tier LLM endpoints return 429 and 503 routinely; a transient one shouldn't cost us
-    the whole analysis. Waits as long as the provider asks, within _RETRY_BUDGET_S."""
+    the whole analysis. Alternates between the given models and, for the same model, waits as
+    long as the provider asks, within _RETRY_BUDGET_S. Returns (completion, model used)."""
     delay = 2.0
     waited = 0.0
     last: Exception | None = None
     for attempt in range(1, _MAX_ATTEMPTS + 1):
+        model = models[(attempt - 1) % len(models)]
         try:
             return await client.chat.completions.parse(
                 model=model,
@@ -216,12 +250,14 @@ async def _parse_with_retry(client: AsyncOpenAI, model: str, prompt: str) -> Any
                     {"role": "user", "content": prompt},
                 ],
                 response_format=CallAnalysis,
-            )
+            ), model
         except Exception as exc:
             last = exc
             if attempt == _MAX_ATTEMPTS or not any(m in str(exc) for m in _RETRYABLE):
                 raise
-            wait = max(delay, _server_delay(exc) + 1)
+            # The provider's "retry in Ns" applies to this model; switching models needs no wait.
+            switching = len(models) > 1
+            wait = delay if switching else max(delay, _server_delay(exc) + 1)
             if waited + wait > _RETRY_BUDGET_S:
                 raise
             logger.warning(
@@ -268,15 +304,15 @@ async def analyse_call(
             api_key=config.api_key, base_url=config.base_url, max_retries=0,
             timeout=_REQUEST_TIMEOUT_S,
         )
-        completion = await asyncio.wait_for(
-            _parse_with_retry(client, config.model, prompt), timeout=_ANALYSIS_TIMEOUT_S
+        completion, model_used = await asyncio.wait_for(
+            _parse_with_retry(client, _analysis_models(), prompt), timeout=_ANALYSIS_TIMEOUT_S
         )
         parsed = completion.choices[0].message.parsed
         if parsed is None:
             raise ValueError("model returned no parsed content")
     except Exception as exc:
         logger.error("post-call analysis failed: %s", exc)
-        result = _deterministic_only(state, f"Analysis unavailable: {_describe(exc)}.")
+        result = _deterministic_only(state, _facts_summary(state, _describe(exc)))
         result.source = "fallback"
         return result
 
@@ -293,6 +329,6 @@ async def analyse_call(
         analysis=reconciled,
         source="llm",
         corrections=corrections,
-        model=config.model,
+        model=model_used,
         usage=usage,
     )

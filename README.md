@@ -321,7 +321,7 @@ hosting is purpose-built for this and has a free allowance.
 uv run --group dev pytest
 ```
 
-77 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
+79 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
 days, relative dates, the booking horizon), the analysis reconciliation (the model claiming a
 booking that did not happen, missing one that did, and every deterministic override), rate-limit
 retries, and the Opik module's failure handling (a hung analysis still logs the call, a double

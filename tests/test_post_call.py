@@ -158,6 +158,7 @@ class TestFallbacks:
             waits.append(seconds)
 
         monkeypatch.setattr(post_call.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(post_call, "_analysis_models", lambda: ["only-model"])
         parsed = _analysis(outcome="declined")
         calls = []
 
@@ -199,9 +200,60 @@ class TestFallbacks:
         )
 
         assert result.source == "fallback"
-        assert result.analysis.call_summary == (
-            "Analysis unavailable: the analysis model's rate limit was reached (429)."
+        assert result.analysis.call_summary.endswith(
+            "No AI summary: the analysis model's rate limit was reached (429); "
+            "this is from the call record only."
         )
+        assert "{" not in result.analysis.call_summary  # no provider payload in the report
+
+    async def test_overloaded_model_falls_back_to_the_backup_model(self, state, monkeypatch):
+        async def fake_sleep(_):
+            pass
+
+        monkeypatch.setattr(post_call.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(post_call, "_analysis_models", lambda: ["primary", "backup"])
+        asked = []
+
+        class PrimaryOverloaded:
+            class chat:
+                class completions:
+                    @staticmethod
+                    async def parse(model, **_):
+                        asked.append(model)
+                        if model == "primary":
+                            raise RuntimeError("Error code: 503 UNAVAILABLE")
+                        return SimpleNamespace(
+                            choices=[SimpleNamespace(message=SimpleNamespace(parsed=_analysis()))],
+                            usage=None,
+                        )
+
+        result = await analyse_call(
+            state, transcript=[{"role": "user", "text": "hello"}], client=PrimaryOverloaded()
+        )
+
+        assert asked == ["primary", "backup"]
+        assert result.source == "llm" and result.model == "backup"
+
+    async def test_fallback_summary_states_the_facts(self, state):
+        state.answered_at = state.started_at
+        state.identity_confirmed = True
+        state.bookings.append(scheduler.book("P001", "Sunita Joshi", "endocrinology", _open_day()))
+
+        class Down:
+            class chat:
+                class completions:
+                    @staticmethod
+                    async def parse(**_):
+                        raise RuntimeError("connection refused")
+
+        result = await analyse_call(
+            state, transcript=[{"role": "user", "text": "hello"}], client=Down()
+        )
+
+        summary = result.analysis.call_summary
+        assert result.analysis.outcome == "appointment_booked"
+        assert summary.startswith("Identity was confirmed. Appointment booked with Dr. Kavita Menon")
+        assert "APT-" in summary
 
     async def test_a_hung_model_still_gives_the_known_facts(self, state, monkeypatch):
         """A request that never returns must end in the fallback, not in no analysis at all."""

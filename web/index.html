@@ -693,7 +693,7 @@ function renderAnalysis(d, roomName) {
       <div class="fact"><div class="k">Appointment booked</div>${yn(d.appointment_booked)}</div>
       <div class="fact"><div class="k">Sentiment</div><div class="v">${label(d.sentiment)}</div></div>
       <div class="fact"><div class="k">Results shared</div><div class="v">${
-        (d.biomarkers_communicated || []).length || 'None'}</div></div>
+        d.source === 'fallback' ? '—' : (d.biomarkers_communicated || []).length || 'None'}</div></div>
     </div>
 
     <p class="summary">${esc(d.summary)}</p>
