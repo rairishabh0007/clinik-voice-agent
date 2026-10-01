@@ -324,6 +324,7 @@ const OUTCOMES = {
   escalated_to_human: ['warn', 'alert', 'Handed to a care manager'],
   sip_failure: ['bad', 'x', 'Call could not connect'],
   incomplete: ['flat', 'dash', 'Call incomplete'],
+  unknown: ['flat', 'alert', 'Analysis not available'],
 };
 // Score names from the in-process judges and the Opik rules. For flags, 0 is the good result.
 const SCORES = {
@@ -676,7 +677,8 @@ function renderAnalysis(d, roomName) {
       <div><div class="title">${esc(title)}</div>
         <div class="sub">${esc(d.patient_name || 'Patient')}${
           d.duration_s ? ` · talked for ${mmss(d.duration_s)}` : ''}${
-          d.source === 'fallback' ? ' · facts only, the analysis model was unavailable' : ''}</div></div>
+          d.source === 'fallback' ? ' · facts only, the analysis model was unavailable' : ''}${
+          d.outcome === 'unknown' ? ' · the call was logged without its analysis; check the agent worker logs' : ''}</div></div>
     </div>
 
     ${d.appointment_booked && appt ? `<div class="ticket">
