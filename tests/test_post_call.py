@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
+from analysis import post_call
 from analysis.post_call import CallAnalysis, _deterministic_only, _reconcile, analyse_call
 from services import patients, scheduler
 from services.call_state import CallState
@@ -147,6 +149,59 @@ class TestFallbacks:
 
         assert result.source == "fallback"
         assert result.analysis.outcome == "voicemail"
+
+    async def test_retry_waits_as_long_as_the_provider_asks(self, state, monkeypatch):
+        """A 429 says 'retry in 31s'; giving up after 14s of backoff would waste the call."""
+        waits = []
+
+        async def fake_sleep(seconds):
+            waits.append(seconds)
+
+        monkeypatch.setattr(post_call.asyncio, "sleep", fake_sleep)
+        parsed = _analysis(outcome="declined")
+        calls = []
+
+        class RateLimitedOnce:
+            class chat:
+                class completions:
+                    @staticmethod
+                    async def parse(**_):
+                        calls.append(1)
+                        if len(calls) == 1:
+                            raise RuntimeError("Error code: 429 RESOURCE_EXHAUSTED. Please retry in 31.2s.")
+                        return SimpleNamespace(
+                            choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed))],
+                            usage=None,
+                        )
+
+        result = await analyse_call(
+            state, transcript=[{"role": "user", "text": "hello"}], client=RateLimitedOnce()
+        )
+
+        assert result.source == "llm"
+        assert waits == [pytest.approx(32.2)]
+
+    async def test_retry_gives_up_beyond_budget_with_a_short_reason(self, state, monkeypatch):
+        async def fake_sleep(_):
+            pass
+
+        monkeypatch.setattr(post_call.asyncio, "sleep", fake_sleep)
+
+        class AlwaysLimited:
+            class chat:
+                class completions:
+                    @staticmethod
+                    async def parse(**_):
+                        raise RuntimeError("Error code: 429 {'retryDelay': '300s'} ...long payload...")
+
+        result = await analyse_call(
+            state, transcript=[{"role": "user", "text": "hello"}], client=AlwaysLimited()
+        )
+
+        assert result.source == "fallback"
+        assert result.analysis.call_summary == (
+            "Analysis unavailable: the analysis model's rate limit was reached (429)."
+        )
 
     def test_no_transcript_summary_is_honest(self, state):
         result = _deterministic_only(state, "The call produced no conversation.")

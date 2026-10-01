@@ -269,7 +269,10 @@ or "tomorrow" instead of `YYYY-MM-DD` are handled; a booking tool call that *err
 finalises the audio file as the session closes, so the pipeline waits for it with a timeout and
 falls back to a URL reference; OGG is transcoded to WAV via ffmpeg when available, for reliable
 playback in the Opik UI; `REDACT_PHI=true` masks phone numbers before anything leaves the process;
-a double shutdown cannot emit duplicate traces; `flush()` is bounded so a worker cannot hang on exit.
+a double shutdown cannot emit duplicate traces; the analysis, the judges and `flush()` each have
+their own time limit, so a slow or rate-limited model costs the analysis, never the trace, and a
+worker cannot hang on exit. Rate-limited analysis waits as long as the provider asks, within a
+budget, then falls back to the facts in the tool record.
 
 ## Deployment
 
@@ -300,10 +303,12 @@ hosting is purpose-built for this and has a free allowance.
 uv run --group dev pytest
 ```
 
-36 tests over the two pieces of logic worth testing directly: the scheduler (conflicts,
-alternatives, closed days, relative dates, the booking horizon) and the analysis reconciliation
-(the model claiming a booking that did not happen, missing one that did, and every deterministic
-override). Both are pure functions, so they need no LiveKit runtime.
+41 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
+days, relative dates, the booking horizon), the analysis reconciliation (the model claiming a
+booking that did not happen, missing one that did, and every deterministic override), rate-limit
+retries, and the Opik module's failure handling (a hung analysis still logs the call, a double
+shutdown logs once, disabling Opik leaves the analysis untouched). None of it needs a LiveKit
+runtime.
 
 ## Scope boundaries
 

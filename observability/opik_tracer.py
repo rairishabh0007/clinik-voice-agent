@@ -128,6 +128,8 @@ class OpikCallTracer:
         sdk_scoring: bool = True,
         judge_model: str | None = None,
         flush_timeout: int = 15,
+        callback_timeout: float = 120,
+        scoring_timeout: float = 30,
     ) -> None:
         self.call_id = call_id
         self.thread_id = f"call-{call_id}"
@@ -139,6 +141,10 @@ class OpikCallTracer:
         self.sdk_scoring = sdk_scoring
         self.judge_model = judge_model
         self.flush_timeout = flush_timeout
+        # Each stage has its own bound, so a slow analysis or judge still leaves time to log the
+        # call. One shared deadline would drop the whole trace for exactly the slow calls.
+        self.callback_timeout = callback_timeout
+        self.scoring_timeout = scoring_timeout
 
         self._client: Any = None
         self._enabled = enabled
@@ -197,6 +203,11 @@ class OpikCallTracer:
     @property
     def enabled(self) -> bool:
         return self._enabled
+
+    @property
+    def total_timeout(self) -> float:
+        """Upper bound on finalise(). The host's shutdown grace period must exceed this."""
+        return self.callback_timeout + self.scoring_timeout + self.flush_timeout + 15
 
     # ------------------------------------------------------------------ attachment
 
@@ -351,7 +362,7 @@ class OpikCallTracer:
         self._finalised = True
 
         try:
-            await asyncio.wait_for(self._finalise_inner(), timeout=self.flush_timeout + 30)
+            await asyncio.wait_for(self._finalise_inner(), timeout=self.total_timeout)
         except asyncio.TimeoutError:
             logger.error("Opik finalisation timed out — call data may be incomplete")
         except Exception:
@@ -363,7 +374,11 @@ class OpikCallTracer:
         finalise_fn = getattr(self, "_finalise_fn", None)
         if finalise_fn is not None:
             try:
-                summary = await finalise_fn(self.transcript()) or {}
+                summary = await asyncio.wait_for(
+                    finalise_fn(self.transcript()), timeout=self.callback_timeout
+                ) or {}
+            except asyncio.TimeoutError:
+                logger.error("finalise callback timed out — logging without analysis")
             except Exception:
                 logger.exception("finalise callback failed — logging without analysis")
 
@@ -377,7 +392,12 @@ class OpikCallTracer:
 
         scores = list(summary.get("feedback_scores") or [])
         if self.sdk_scoring:
-            scores.extend(await self._sdk_scores(analysis))
+            try:
+                scores.extend(
+                    await asyncio.wait_for(self._sdk_scores(analysis), timeout=self.scoring_timeout)
+                )
+            except asyncio.TimeoutError:
+                logger.warning("SDK scoring timed out — logging without those scores")
 
         self._emit_turn_traces()
         self._emit_call_trace(

@@ -328,7 +328,8 @@ if __name__ == "__main__":
             agent_name=AGENT_NAME,
             # Post-call analysis and the Opik flush run in the shutdown callback. The default
             # grace period kills the process mid-write, losing the trace for exactly the calls
-            # worth inspecting — the slow, retrying ones.
-            shutdown_process_timeout=float(os.getenv("SHUTDOWN_TIMEOUT_S", "90")),
+            # worth inspecting — the slow, retrying ones. Must exceed the tracer's total_timeout
+            # (180s by default).
+            shutdown_process_timeout=float(os.getenv("SHUTDOWN_TIMEOUT_S", "200")),
         )
     )

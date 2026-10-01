@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from typing import Any, Literal
 
 from openai import AsyncOpenAI
@@ -173,12 +174,32 @@ def _reconcile(analysis: CallAnalysis, state: CallState) -> tuple[CallAnalysis, 
 
 _RETRYABLE = ("429", "500", "502", "503", "504", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "overloaded")
 _MAX_ATTEMPTS = int(os.getenv("ANALYSIS_MAX_ATTEMPTS", "4"))
+# Total time spent waiting between attempts. Kept well inside the tracer's callback timeout.
+_RETRY_BUDGET_S = float(os.getenv("ANALYSIS_RETRY_BUDGET_S", "45"))
+# Rate-limit errors say how long to wait ("Please retry in 31.2s", "retryDelay': '31s'").
+_SERVER_DELAY = re.compile(r"retry in ([\d.]+)s|retryDelay'?:\s*'([\d.]+)s")
+
+
+def _server_delay(exc: Exception) -> float:
+    match = _SERVER_DELAY.search(str(exc))
+    return float(match.group(1) or match.group(2)) if match else 0.0
+
+
+def _describe(exc: Exception) -> str:
+    """A one-line reason for the fallback summary, not the provider's full error payload."""
+    text = str(exc)
+    if "429" in text or "RESOURCE_EXHAUSTED" in text:
+        return "the analysis model's rate limit was reached (429)"
+    if "503" in text or "UNAVAILABLE" in text or "overloaded" in text:
+        return "the analysis model was overloaded (503)"
+    return text.splitlines()[0][:160] if text else type(exc).__name__
 
 
 async def _parse_with_retry(client: AsyncOpenAI, model: str, prompt: str) -> Any:
     """Free-tier LLM endpoints return 429 and 503 routinely; a transient one shouldn't cost us
-    the whole analysis."""
+    the whole analysis. Waits as long as the provider asks, within _RETRY_BUDGET_S."""
     delay = 2.0
+    waited = 0.0
     last: Exception | None = None
     for attempt in range(1, _MAX_ATTEMPTS + 1):
         try:
@@ -194,11 +215,15 @@ async def _parse_with_retry(client: AsyncOpenAI, model: str, prompt: str) -> Any
             last = exc
             if attempt == _MAX_ATTEMPTS or not any(m in str(exc) for m in _RETRYABLE):
                 raise
+            wait = max(delay, _server_delay(exc) + 1)
+            if waited + wait > _RETRY_BUDGET_S:
+                raise
             logger.warning(
                 "analysis attempt %d/%d failed (%s) — retrying in %.0fs",
-                attempt, _MAX_ATTEMPTS, str(exc)[:80], delay,
+                attempt, _MAX_ATTEMPTS, _describe(exc), wait,
             )
-            await asyncio.sleep(delay)
+            await asyncio.sleep(wait)
+            waited += wait
             delay *= 2
     raise last  # unreachable, but keeps the type checker honest
 
@@ -231,14 +256,18 @@ async def analyse_call(
 
     config = analysis_config()
     try:
-        client = client or AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
+        # max_retries=0: _parse_with_retry owns retries. The SDK's own would multiply every
+        # attempt by three and burn a free tier's per-minute quota on its own.
+        client = client or AsyncOpenAI(
+            api_key=config.api_key, base_url=config.base_url, max_retries=0
+        )
         completion = await _parse_with_retry(client, config.model, prompt)
         parsed = completion.choices[0].message.parsed
         if parsed is None:
             raise ValueError("model returned no parsed content")
     except Exception as exc:
         logger.error("post-call analysis failed: %s", exc)
-        result = _deterministic_only(state, f"Analysis unavailable: {exc}")
+        result = _deterministic_only(state, f"Analysis unavailable: {_describe(exc)}.")
         result.source = "fallback"
         return result
 
