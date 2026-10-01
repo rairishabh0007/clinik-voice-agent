@@ -90,13 +90,11 @@ If the transcript is empty or the call never connected, say so rather than inven
 
 
 def _transcript_text(transcript: list[dict[str, Any]]) -> str:
-    lines = []
-    for item in transcript:
-        role = item.get("role", "unknown")
-        text = (item.get("text") or "").strip()
-        if text:
-            lines.append(f"{role}: {text}")
-    return "\n".join(lines)
+    return "\n".join(
+        f"{item.get('role', 'unknown')}: {text}"
+        for item in transcript
+        if (text := (item.get("text") or "").strip())
+    )
 
 
 def _deterministic_only(state: CallState, reason: str) -> AnalysisResult:
@@ -112,7 +110,6 @@ def _deterministic_only(state: CallState, reason: str) -> AnalysisResult:
             identity_verified=state.identity_confirmed,
         ),
         source="deterministic",
-        corrections=[],
     )
 
 
@@ -246,13 +243,10 @@ async def analyse_call(
     if corrections:
         logger.warning("analysis corrected: %s", "; ".join(corrections))
 
-    usage = None
-    if completion.usage:
-        usage = {
-            "prompt_tokens": completion.usage.prompt_tokens,
-            "completion_tokens": completion.usage.completion_tokens,
-            "total_tokens": completion.usage.total_tokens,
-        }
+    usage = {
+        key: getattr(completion.usage, key)
+        for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+    } if completion.usage else None
 
     return AnalysisResult(
         analysis=reconciled,

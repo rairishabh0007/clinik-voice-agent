@@ -41,10 +41,14 @@ class CallDetail:
     score_reasons: dict[str, str] = field(default_factory=dict)
 
 
+def _project_name() -> str:
+    return os.getenv("OPIK_PROJECT_NAME", "livekit-voice-agent")
+
+
 def _client():
     import opik
 
-    return opik.Opik(project_name=os.getenv("OPIK_PROJECT_NAME", "livekit-voice-agent"))
+    return opik.Opik(project_name=_project_name())
 
 
 def configured() -> bool:
@@ -52,22 +56,26 @@ def configured() -> bool:
 
 
 def _project(rest) -> Any:
-    return rest.projects.retrieve_project(
-        name=os.getenv("OPIK_PROJECT_NAME", "livekit-voice-agent")
-    )
+    return rest.projects.retrieve_project(name=_project_name())
+
+
+def _logs_url(project_id: str) -> str:
+    return f"{WEB_ROOT}/{os.getenv('OPIK_WORKSPACE', 'default')}/projects/{project_id}/logs"
 
 
 def trace_url(project_id: str, trace_id: str) -> str:
-    workspace = os.getenv("OPIK_WORKSPACE", "default")
-    return (
-        f"{WEB_ROOT}/{workspace}/projects/{project_id}"
-        f"/logs?logsType=traces&trace={trace_id}"
-    )
+    return f"{_logs_url(project_id)}?logsType=traces&trace={trace_id}"
 
 
 def threads_url(project_id: str) -> str:
-    workspace = os.getenv("OPIK_WORKSPACE", "default")
-    return f"{WEB_ROOT}/{workspace}/projects/{project_id}/logs?logsType=threads"
+    return f"{_logs_url(project_id)}?logsType=threads"
+
+
+def _call_traces(rest, size: int) -> tuple[str, list[Any]]:
+    """The project id, and the call-level traces among its most recent `size` traces."""
+    project_id = str(_project(rest).id)
+    page = rest.traces.get_traces_by_project(project_id=project_id, size=size)
+    return project_id, [t for t in page.content or [] if t.name == "outbound_call"]
 
 
 def _summarise(trace: Any) -> CallSummary:
@@ -90,24 +98,15 @@ def _summarise(trace: Any) -> CallSummary:
 
 def list_calls(limit: int = 25) -> tuple[str, list[CallSummary]]:
     """Most recent calls, newest first. Returns (project_id, calls)."""
-    rest = _client().rest_client
-    project = _project(rest)
-    page = rest.traces.get_traces_by_project(project_id=str(project.id), size=200)
-    calls = [
-        _summarise(t) for t in (page.content or []) if t.name == "outbound_call"
-    ]
-    calls.sort(key=lambda c: c.started_at or datetime.min, reverse=True)
-    return str(project.id), calls[:limit]
+    project_id, traces = _call_traces(_client().rest_client, 200)
+    calls = sorted(map(_summarise, traces), key=lambda c: c.started_at or datetime.min, reverse=True)
+    return project_id, calls[:limit]
 
 
 def find_call_by_room(room_name: str) -> CallSummary | None:
     """Locate the call trace for a room. Returns None until the agent has finished logging it."""
-    rest = _client().rest_client
-    project = _project(rest)
-    page = rest.traces.get_traces_by_project(project_id=str(project.id), size=100)
-    for trace in page.content or []:
-        if trace.name != "outbound_call":
-            continue
+    _, traces = _call_traces(_client().rest_client, 100)
+    for trace in traces:
         if (trace.metadata or {}).get("call_id") == room_name:
             return _summarise(trace)
     return None
@@ -162,10 +161,10 @@ def _transcript(rest, project_id: str, thread_id: str) -> list[dict[str, str]]:
 
     lines: list[dict[str, str]] = []
     for turn in turns:
-        user = (turn.input or {}).get("user", "").strip()
-        agent = (turn.output or {}).get("agent", "").strip()
-        if user:
-            lines.append({"role": "patient", "text": user})
-        if agent:
-            lines.append({"role": "agent", "text": agent})
+        for role, text in (
+            ("patient", (turn.input or {}).get("user", "")),
+            ("agent", (turn.output or {}).get("agent", "")),
+        ):
+            if text.strip():
+                lines.append({"role": role, "text": text.strip()})
     return lines

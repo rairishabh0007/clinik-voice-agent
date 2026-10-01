@@ -45,6 +45,10 @@ def _twilio_auth() -> tuple[str, str] | None:
     return (sid, token) if sid and token else None
 
 
+def _calls_url(auth: tuple[str, str], suffix: str = "") -> str:
+    return f"{API_ROOT}/Accounts/{auth[0]}/Calls{suffix}.json"
+
+
 def list_rooms() -> list[LiveRoom]:
     """Rooms currently open on LiveKit — i.e. calls in progress."""
     from livekit import api
@@ -82,12 +86,11 @@ def list_twilio_calls() -> list[LiveTwilioCall]:
     auth = _twilio_auth()
     if not auth:
         return []
-    sid, _ = auth
     calls: dict[str, LiveTwilioCall] = {}
     for status in LIVE_TWILIO_STATES:
         try:
             r = httpx.get(
-                f"{API_ROOT}/Accounts/{sid}/Calls.json",
+                _calls_url(auth),
                 auth=auth,
                 params={"Status": status, "PageSize": 20},
                 timeout=20,
@@ -110,9 +113,8 @@ def end_twilio_call(call_sid: str) -> dict[str, Any]:
     auth = _twilio_auth()
     if not auth:
         raise RuntimeError("TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not set")
-    sid, _ = auth
     r = httpx.post(
-        f"{API_ROOT}/Accounts/{sid}/Calls/{call_sid}.json",
+        _calls_url(auth, f"/{call_sid}"),
         auth=auth,
         data={"Status": "completed"},
         timeout=20,
@@ -152,10 +154,9 @@ def recent_attempts(limit: int = 10) -> list[CallAttempt]:
     auth = _twilio_auth()
     if not auth:
         return []
-    sid, _ = auth
     try:
         r = httpx.get(
-            f"{API_ROOT}/Accounts/{sid}/Calls.json",
+            _calls_url(auth),
             auth=auth,
             params={"PageSize": limit * 3},
             timeout=20,
@@ -168,37 +169,33 @@ def recent_attempts(limit: int = 10) -> list[CallAttempt]:
     parents = [c for c in calls if not c.get("parent_call_sid")]
     children = {c.get("parent_call_sid"): c for c in calls if c.get("parent_call_sid")}
 
-    out: list[CallAttempt] = []
-    for c in parents[:limit]:
-        child = children.get(c["sid"])
-        out.append(
-            CallAttempt(
-                sid=c["sid"],
-                to=c.get("to", ""),
-                status=c.get("status", ""),
-                duration=c.get("duration") or "0",
-                created=c.get("date_created", ""),
-                sip_leg=child["sid"] if child else None,
-            )
+    return [
+        CallAttempt(
+            sid=c["sid"],
+            to=c.get("to", ""),
+            status=c.get("status", ""),
+            duration=c.get("duration") or "0",
+            created=c.get("date_created", ""),
+            sip_leg=children[c["sid"]]["sid"] if c["sid"] in children else None,
         )
-    return out
+        for c in parents[:limit]
+    ]
+
+
+def _end_each(end: Any, keys: list[str]) -> int:
+    """Call `end` on every key, counting the ones that succeeded."""
+    ended = 0
+    for key in keys:
+        try:
+            end(key)
+            ended += 1
+        except Exception:
+            pass
+    return ended
 
 
 def end_everything() -> tuple[int, int]:
     """Hang up every live call, both layers. Returns (twilio_ended, rooms_ended)."""
-    twilio = 0
-    for call in list_twilio_calls():
-        try:
-            end_twilio_call(call.sid)
-            twilio += 1
-        except Exception:
-            pass
-
-    rooms = 0
-    for room in list_rooms():
-        try:
-            end_room(room.name)
-            rooms += 1
-        except Exception:
-            pass
+    twilio = _end_each(end_twilio_call, [c.sid for c in list_twilio_calls()])
+    rooms = _end_each(end_room, [r.name for r in list_rooms()])
     return twilio, rooms

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -37,14 +37,7 @@ class Biomarker:
         return f"{self.name} of {self.value} {self.unit}"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "value": self.value,
-            "unit": self.unit,
-            "reference_range": self.reference_range,
-            "status": self.status,
-            "collected_on": self.collected_on,
-        }
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -83,8 +76,10 @@ def mask_phone(phone: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_raw() -> dict[str, dict[str, Any]]:
-    records = json.loads(DATA_FILE.read_text())
-    return {record["id"]: record for record in records}
+    return {
+        record["id"]: record
+        for record in json.loads(DATA_FILE.read_text())
+    }
 
 
 def _build(record: dict[str, Any]) -> Patient:
@@ -125,14 +120,12 @@ def biomarker_briefing(patient: Patient) -> str:
     if not patient.biomarkers:
         return "No biomarker results are available for this patient."
 
-    lines = []
-    for b in patient.biomarkers:
-        lines.append(
-            f"- {b.name}: {b.value} {b.unit} "
-            f"(normal range: {b.reference_range}; this result is {b.status}; "
-            f"sample collected {b.collected_on})"
-        )
-    return "\n".join(lines)
+    return "\n".join(
+        f"- {b.name}: {b.value} {b.unit} "
+        f"(normal range: {b.reference_range}; this result is {b.status}; "
+        f"sample collected {b.collected_on})"
+        for b in patient.biomarkers
+    )
 
 
 def staleness_note(patient: Patient, *, today: date | None = None) -> str | None:
@@ -145,9 +138,9 @@ def staleness_note(patient: Patient, *, today: date | None = None) -> str | None
     except ValueError:
         return None
     age_days = (today - oldest).days
-    if age_days > 30:
-        return f"These results are {age_days} days old — mention the collection date when you share them."
-    return None
+    if age_days <= 30:
+        return None
+    return f"These results are {age_days} days old — mention the collection date when you share them."
 
 
 def build_call_variables(patient: Patient, *, redact: bool = False) -> dict[str, Any]:

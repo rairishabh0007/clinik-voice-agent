@@ -1,5 +1,5 @@
 [project]
-name = "voice-livekit"
+name = "clinik-voice-agent"
 version = "0.1.0"
 description = "Outbound healthcare voice agent on LiveKit with Opik observability"
 requires-python = ">=3.11,<3.13"

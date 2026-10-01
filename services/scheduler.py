@@ -166,10 +166,7 @@ def normalise_specialty(specialty: str | None) -> str:
     key = specialty.strip().lower()
     if key in SPECIALTIES:
         return key
-    for known in SPECIALTIES:
-        if known in key or key in known:
-            return known
-    return DEFAULT_SPECIALTY
+    return next((k for k in SPECIALTIES if k in key or key in k), DEFAULT_SPECIALTY)
 
 
 def normalise_window(window: str | None) -> str | None:
@@ -206,9 +203,11 @@ def available_slots(
         while day <= horizon and len(found) < limit:
             if _is_open(day):
                 for slot in _grid(spec, day, win):
-                    if slot.start - current < MIN_LEAD_TIME:
-                        continue
-                    if slot.key in taken or not _slot_is_free(slot):
+                    if (
+                        slot.start - current < MIN_LEAD_TIME
+                        or slot.key in taken
+                        or not _slot_is_free(slot)
+                    ):
                         continue
                     found.append(slot)
                     if len(found) >= limit:

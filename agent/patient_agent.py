@@ -19,6 +19,16 @@ from services.call_state import CallState
 logger = logging.getLogger("patient-agent")
 
 
+def _booking_args(
+    preferred_date: str, preferred_window: str | None, specialty: str | None
+) -> dict[str, Any]:
+    return {
+        "preferred_date": preferred_date,
+        "preferred_window": preferred_window,
+        "specialty": specialty,
+    }
+
+
 class PatientOutreachAgent(Agent):
     def __init__(self, state: CallState, variables: dict[str, Any]) -> None:
         today = scheduler.now().date().isoformat()
@@ -77,11 +87,7 @@ class PatientOutreachAgent(Agent):
             preferred_window: "morning", "afternoon" or "evening" if the patient stated one.
             specialty: The clinic to book with. Defaults to endocrinology.
         """
-        args = {
-            "preferred_date": preferred_date,
-            "preferred_window": preferred_window,
-            "specialty": specialty,
-        }
+        args = _booking_args(preferred_date, preferred_window, specialty)
         try:
             day = scheduler.resolve_date(preferred_date)
             slots = scheduler.available_slots(specialty, on=day, window=preferred_window, limit=3)
@@ -89,10 +95,7 @@ class PatientOutreachAgent(Agent):
             self._state.record_tool("check_availability", args, error=str(exc))
             raise ToolError(str(exc)) from exc
 
-        result = {
-            "slots": [s.to_dict() for s in slots],
-            "count": len(slots),
-        }
+        result = {"slots": [s.to_dict() for s in slots], "count": len(slots)}
         if not slots:
             result["note"] = "Nothing free that day. Offer the patient a different day."
         self._state.record_tool("check_availability", args, result=result)
@@ -114,11 +117,7 @@ class PatientOutreachAgent(Agent):
             specialty: The clinic to book with. Defaults to endocrinology.
         """
         patient = self._state.patient
-        args = {
-            "preferred_date": preferred_date,
-            "preferred_window": preferred_window,
-            "specialty": specialty,
-        }
+        args = _booking_args(preferred_date, preferred_window, specialty)
         try:
             booking = scheduler.book(
                 patient_id=patient.id,
@@ -127,18 +126,16 @@ class PatientOutreachAgent(Agent):
                 preferred_date=preferred_date,
                 preferred_window=preferred_window,
             )
-        except scheduler.SlotUnavailable as exc:
-            alternatives = [s.spoken for s in exc.alternatives]
-            self._state.record_tool("book_appointment", args, error=str(exc))
-            if alternatives:
-                raise ToolError(
-                    f"{exc} Offer these instead and ask the patient to pick one: "
-                    + "; ".join(alternatives)
-                ) from exc
-            raise ToolError(f"{exc} Nothing else is free nearby — offer a callback.") from exc
         except scheduler.SchedulingError as exc:
             self._state.record_tool("book_appointment", args, error=str(exc))
-            raise ToolError(str(exc)) from exc
+            if not isinstance(exc, scheduler.SlotUnavailable):
+                raise ToolError(str(exc)) from exc
+            if exc.alternatives:
+                raise ToolError(
+                    f"{exc} Offer these instead and ask the patient to pick one: "
+                    + "; ".join(s.spoken for s in exc.alternatives)
+                ) from exc
+            raise ToolError(f"{exc} Nothing else is free nearby — offer a callback.") from exc
 
         self._state.bookings.append(booking)
         result = booking.to_dict()
@@ -163,8 +160,7 @@ class PatientOutreachAgent(Agent):
         message = VOICEMAIL_MESSAGE.format(
             clinic="Sehat Clinic", first_name=self._state.patient.first_name
         )
-        handle = context.session.say(message, allow_interruptions=False)
-        await handle.wait_for_playout()
+        await context.session.say(message, allow_interruptions=False).wait_for_playout()
         await self._hangup()
 
     @function_tool()
@@ -188,10 +184,9 @@ class PatientOutreachAgent(Agent):
                 "back shortly, and if this is urgent they should contact emergency services now."
             )
 
-        handle = context.session.say(
+        await context.session.say(
             "Let me connect you to one of our care managers. Please stay on the line."
-        )
-        await handle.wait_for_playout()
+        ).wait_for_playout()
         try:
             ctx = get_job_context()
             participant = await ctx.wait_for_participant()

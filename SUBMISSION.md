@@ -1,4 +1,4 @@
-# Sehat Clinic Voice Agent — assignment submission
+# Clinik Voice Agent — assignment submission
 
 An outbound healthcare voice agent on LiveKit. It calls a patient, tells them their HbA1c and
 fasting glucose results, books a consultation through a tool call, then analyses the call and

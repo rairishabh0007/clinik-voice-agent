@@ -9,5 +9,6 @@ __pycache__/
 .DS_Store
 .env.agent
 voice_livekit.egg-info/
+clinik_voice_agent.egg-info/
 build/
 dist/

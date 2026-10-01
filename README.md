@@ -1,4 +1,4 @@
-# Biomarker Outreach Agent
+# Clinik Voice Agent
 
 An outbound healthcare voice agent built on LiveKit. It phones a patient, tells them their HbA1c
 and fasting glucose results, and books a follow-up consultation through a tool call. When the call

@@ -67,13 +67,7 @@ class CallState:
         error: str | None = None,
     ) -> None:
         self.tool_invocations.append(
-            ToolInvocation(
-                name=name,
-                arguments=arguments,
-                result=result,
-                error=error,
-                called_at=datetime.now(timezone.utc),
-            )
+            ToolInvocation(name, arguments, result, error, datetime.now(timezone.utc))
         )
 
     @property

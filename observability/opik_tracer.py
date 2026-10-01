@@ -52,6 +52,7 @@ FinaliseFn = Callable[[list[dict[str, Any]]], Awaitable[dict[str, Any]]]
 
 _PHONE_RE = re.compile(r"(\+?\d[\d\s\-().]{7,}\d)")
 _AUDIO_TYPES = {".wav": "audio/wav", ".ogg": "audio/ogg", ".mp3": "audio/mpeg"}
+_TOKEN_KEYS = ("prompt_tokens", "completion_tokens", "total_tokens")
 
 
 class _Session(Protocol):
@@ -81,6 +82,11 @@ def _redact(value: Any) -> Any:
     if isinstance(value, list):
         return [_redact(v) for v in value]
     return value
+
+
+def _event_time(event: Any) -> datetime:
+    created = getattr(event, "created_at", None)
+    return _utc(created) if isinstance(created, datetime) else _utc()
 
 
 def _mask(phone: str) -> str:
@@ -243,8 +249,7 @@ class OpikCallTracer:
         if not isinstance(text, str):
             text = str(text)
         text = text.strip()
-        created = getattr(event, "created_at", None)
-        at = _utc(created) if isinstance(created, datetime) else _utc()
+        at = _event_time(event)
 
         self._items.append({"role": role, "text": text, "at": at.isoformat()})
         if not text:
@@ -267,8 +272,7 @@ class OpikCallTracer:
         outputs = {
             getattr(o, "call_id", None): o for o in getattr(event, "function_call_outputs", []) or []
         }
-        created = getattr(event, "created_at", None)
-        at = _utc(created) if isinstance(created, datetime) else _utc()
+        at = _event_time(event)
 
         for call in calls:
             output = outputs.get(getattr(call, "call_id", None))
@@ -300,14 +304,11 @@ class OpikCallTracer:
                 payload[attr] = value
         self._metrics.append(payload)
 
-        for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
-            if key in payload:
-                self._usage_totals[key] = self._usage_totals.get(key, 0) + payload[key]
+        tokens = {k: payload[k] for k in _TOKEN_KEYS if k in payload}
+        for key, value in tokens.items():
+            self._usage_totals[key] = self._usage_totals.get(key, 0) + value
         if self._turns and payload["kind"].startswith("LLM"):
-            self._turns[-1].usage = {
-                k: payload[k] for k in ("prompt_tokens", "completion_tokens", "total_tokens")
-                if k in payload
-            }
+            self._turns[-1].usage = tokens
 
     def _on_usage(self, event: Any) -> None:
         usage = getattr(event, "usage", None)
@@ -565,9 +566,7 @@ class OpikCallTracer:
 
     def _maybe_transcode(self, path: Path) -> Path:
         """Opik plays WAV reliably; OGG depends on the browser. Transcode when ffmpeg is present."""
-        if path.suffix.lower() == ".wav":
-            return path
-        if not _env_flag("OPIK_TRANSCODE_AUDIO", True):
+        if path.suffix.lower() == ".wav" or not _env_flag("OPIK_TRANSCODE_AUDIO", True):
             return path
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
@@ -608,13 +607,15 @@ class OpikCallTracer:
         kwargs = {"model": self.judge_model} if self.judge_model else {}
         scores: list[dict[str, Any]] = []
 
-        try:
-            moderation = Moderation(**kwargs).score(output=agent_text)
+        def add(name: str, result: Any) -> None:
             scores.append({
-                "name": "moderation",
-                "value": float(moderation.value),
-                "reason": (moderation.reason or "")[:1000],
+                "name": name,
+                "value": float(result.value),
+                "reason": (result.reason or "")[:1000],
             })
+
+        try:
+            add("moderation", Moderation(**kwargs).score(output=agent_text))
         except Exception:
             logger.warning("moderation metric failed", exc_info=True)
 
@@ -623,7 +624,7 @@ class OpikCallTracer:
             # G-Eval derives a continuous score from token probabilities over a rating scale.
             # Binary criteria ("score 1 if all hold, else 0") make it return near-zero even when
             # its own reasoning is wholly positive — so this is written as a graded rubric.
-            geval = GEval(
+            add("clinical_protocol_compliance", GEval(
                 task_introduction=(
                     "You audit a healthcare voice agent that phoned a patient about lab results."
                 ),
@@ -642,12 +643,7 @@ class OpikCallTracer:
                     f"Permitted results:\n{briefing}"
                 ),
                 **kwargs,
-            ).score(output=agent_text)
-            scores.append({
-                "name": "clinical_protocol_compliance",
-                "value": float(geval.value),
-                "reason": (geval.reason or "")[:1000],
-            })
+            ).score(output=agent_text))
         except Exception:
             logger.warning("g-eval metric failed", exc_info=True)
 

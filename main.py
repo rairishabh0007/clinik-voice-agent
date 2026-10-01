@@ -23,7 +23,6 @@ from typing import Any
 from dotenv import load_dotenv
 from livekit import api, rtc
 from livekit.agents import (
-    Agent,
     AgentSession,
     JobContext,
     JobProcess,
@@ -87,10 +86,8 @@ def _build_llm() -> Any:
 
 def _parse_metadata(ctx: JobContext) -> dict[str, Any]:
     raw = (ctx.job.metadata or "").strip()
-    if not raw:
-        return {}
     try:
-        return json.loads(raw)
+        return json.loads(raw) if raw else {}
     except json.JSONDecodeError:
         logger.error("job metadata is not valid JSON: %r", raw)
         return {}
@@ -107,15 +104,15 @@ def _patient_from_room(room_name: str) -> str | None:
     """
     for prefix in ROOM_PREFIXES:
         if room_name.startswith(prefix):
-            candidate = room_name[len(prefix):].split("-")[0]
-            return candidate or None
+            return room_name[len(prefix):].split("-")[0] or None
     return None
 
 
 async def _wait_for_recording(path: Path, timeout: float = 8.0) -> str | None:
     """The recorder finalises the file as the session closes, which can race our shutdown."""
-    deadline = asyncio.get_running_loop().time() + timeout
-    while asyncio.get_running_loop().time() < deadline:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
         if path.exists() and path.stat().st_size > 0:
             return str(path)
         await asyncio.sleep(0.25)
@@ -148,9 +145,10 @@ async def entrypoint(ctx: JobContext) -> None:
 
     ctx.log_context_fields = {"room": ctx.room.name, "patient": patient.id}
 
+    stt_model = os.getenv("DEEPGRAM_MODEL", "nova-3")
     session = AgentSession(
         vad=ctx.proc.userdata.get("vad") or silero.VAD.load(),
-        stt=deepgram.STT(model=os.getenv("DEEPGRAM_MODEL", "nova-3"), language="en"),
+        stt=deepgram.STT(model=stt_model, language="en"),
         llm=_build_llm(),
         tts=_build_tts(),
         turn_detection=EnglishModel(),
@@ -183,7 +181,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "ordering_clinician": patient.ordering_clinician,
             "llm_model": model.model,
             "llm_provider": model.provider,
-            "stt_model": os.getenv("DEEPGRAM_MODEL", "nova-3"),
+            "stt_model": stt_model,
             "tts_provider": TTS_PROVIDER,
             "agent_name": AGENT_NAME,
             "mode": (
@@ -228,6 +226,12 @@ async def entrypoint(ctx: JobContext) -> None:
         )
     )
 
+    async def abort(dial_error: str) -> None:
+        state.dial_error = dial_error
+        session_task.cancel()
+        await tracer.finalise()
+        ctx.shutdown()
+
     if phone_number:
         trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
         if not trunk_id:
@@ -253,21 +257,12 @@ async def entrypoint(ctx: JobContext) -> None:
         except api.SipCallError as exc:
             status = getattr(exc, "sip_status_code", None)
             state.sip_status_code = status
-            state.dial_error = _SIP_OUTCOMES.get(status or 0, "sip_failure")
-            logger.warning("call not connected (SIP %s) -> %s", status, state.dial_error)
-            session_task.cancel()
-            await tracer.finalise()
-            ctx.shutdown()
-            return
+            outcome = _SIP_OUTCOMES.get(status or 0, "sip_failure")
+            logger.warning("call not connected (SIP %s) -> %s", status, outcome)
+            return await abort(outcome)
         except Exception:
             logger.exception("outbound dial failed")
-            state.dial_error = "sip_failure"
-            session_task.cancel()
-            await tracer.finalise()
-            ctx.shutdown()
-            return
-
-        state.answered_at = datetime.now(timezone.utc)
+            return await abort("sip_failure")
         logger.info("call answered by %s", phone_number)
     elif awaits_participant:
         logger.info("waiting for the caller to join %s", ctx.room.name)
@@ -277,27 +272,18 @@ async def entrypoint(ctx: JobContext) -> None:
             )
         except asyncio.TimeoutError:
             logger.warning("nobody joined %s — treating as unanswered", ctx.room.name)
-            state.dial_error = "no_answer"
-            session_task.cancel()
-            await tracer.finalise()
-            ctx.shutdown()
-            return
-        state.answered_at = datetime.now(timezone.utc)
+            return await abort("no_answer")
         logger.info("caller %s joined", participant.identity)
-    else:
-        state.answered_at = datetime.now(timezone.utc)
+    state.answered_at = datetime.now(timezone.utc)
 
     await session_task
-    handle = session.say(greeting(patient.name))
-    await handle.wait_for_playout()
+    await session.say(greeting(patient.name)).wait_for_playout()
 
 
 def _duration(seconds: int) -> Any:
     from google.protobuf.duration_pb2 import Duration
 
-    d = Duration()
-    d.seconds = seconds
-    return d
+    return Duration(seconds=seconds)
 
 
 if __name__ == "__main__":
