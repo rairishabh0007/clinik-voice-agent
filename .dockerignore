@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .env
+.env.agent
 .git/
 tests/
 scripts/
