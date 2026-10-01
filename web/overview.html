@@ -82,7 +82,8 @@ td:last-child{color:var(--ink-2)}
 <main class="wrap">
   <h1>How it works</h1>
   <p class="lede">Riya, an AI care coordinator, calls a patient about their lab results and tries
-    to book a doctor's appointment. After the call, everything is analysed and saved in Opik.</p>
+    to book a doctor's appointment. After the call, everything is analysed, saved in Opik, and a
+    short report can be sent by email or WhatsApp.</p>
 
   <section class="card">
     <h2>One call, step by step</h2>
@@ -100,6 +101,9 @@ td:last-child{color:var(--ink-2)}
       <li><span class="num">5</span><div><b>Analyse and save</b>
         <span>When the call ends, an LLM writes a summary and outcome, and the call is sent to
           Opik with its scores.</span></div></li>
+      <li><span class="num">6</span><div><b>Send the report</b>
+        <span>The report goes to an email address automatically, or opens in WhatsApp ready to
+          send from your own number.</span></div></li>
     </ol>
   </section>
 
@@ -136,6 +140,8 @@ td:last-child{color:var(--ink-2)}
       <tr><td>Gemini</td><td>Riya's replies and the post-call analysis</td></tr>
       <tr><td>Deepgram</td><td>Turns speech into text and text into speech</td></tr>
       <tr><td>Opik</td><td>Stores each call and scores it</td></tr>
+      <tr><td>Gmail</td><td>Emails the post-call report</td></tr>
+      <tr><td>WhatsApp</td><td>Opens the report as a message, sent with one tap</td></tr>
     </table>
     <div class="note">This demo calls you in the browser. The same agent can dial a real phone
       number once a SIP phone line is connected.</div>
