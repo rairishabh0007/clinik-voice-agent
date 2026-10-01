@@ -16,16 +16,15 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# Dependencies first so that editing application code does not invalidate the layer.
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install ".[agent]"
-
-COPY main.py ./
+# pyproject.toml declares agent/, analysis/, observability/ and services/ as packages, so they
+# must be present for `pip install` to build at all.
+COPY pyproject.toml main.py ./
 COPY agent/ ./agent/
 COPY analysis/ ./analysis/
 COPY observability/ ./observability/
 COPY services/ ./services/
 COPY data/ ./data/
+RUN pip install --upgrade pip && pip install ".[agent]"
 
 # Model weights are fetched at build time. Downloading them on first call would block the event
 # loop for several seconds and delay the greeting on a live call.
