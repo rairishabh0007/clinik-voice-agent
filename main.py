@@ -237,11 +237,18 @@ async def entrypoint(ctx: JobContext) -> None:
 
     agent = PatientOutreachAgent(state=state, variables=variables)
     room_input = RoomInputOptions()
-    if phone_number and os.getenv("LIVEKIT_URL", "").endswith("livekit.cloud"):
+    # Background voice cancellation strips voices other than the caller's — including the agent's
+    # own voice leaking from a laptop speaker into the mic, which otherwise gets transcribed as
+    # the patient. LiveKit Cloud only.
+    if (phone_number or web_call) and os.getenv("LIVEKIT_URL", "").endswith("livekit.cloud"):
         try:
             from livekit.plugins import noise_cancellation
 
-            room_input = RoomInputOptions(noise_cancellation=noise_cancellation.BVCTelephony())
+            room_input = RoomInputOptions(
+                noise_cancellation=(
+                    noise_cancellation.BVCTelephony() if phone_number else noise_cancellation.BVC()
+                )
+            )
         except Exception:
             logger.info("Krisp noise cancellation unavailable — continuing without it")
 

@@ -374,6 +374,10 @@ async function startCall() {
     if (!room?.canPlaybackAudio) showUnblock();
   });
 
+  // Before connecting: the agent greets the moment we join, and a transcription stream that
+  // arrives before its handler exists is dropped, so the greeting would never appear.
+  attachTranscription();
+
   try {
     await room.connect(info.url, info.token);
     // Without echo cancellation the agent's own voice comes back through the speakers, gets
@@ -385,7 +389,6 @@ async function startCall() {
       autoGainControl: true,
     });
     try { await room.startAudio(); } catch (_) { showUnblock(); }
-    attachTranscription();
     startTimer();
     setStatus(`In call with ${info.patient}`, 'on');
   } catch (err) {
