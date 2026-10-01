@@ -115,6 +115,16 @@ def assert_contactable(patient: Patient) -> None:
         raise PatientNotContactable(f"{patient.id} has not consented to outbound calls")
 
 
+# How each result status may be described. The agent's rules only allow placing a value relative
+# to the normal range, so the briefing never hands it a word like "borderline" to repeat.
+_STATUS_PHRASES = {
+    "high": "above the normal range",
+    "borderline": "slightly above the normal range",
+    "low": "below the normal range",
+    "normal": "within the normal range",
+}
+
+
 def biomarker_briefing(patient: Patient) -> str:
     """The exact wording the agent is allowed to use. Values are never re-derived by the LLM."""
     if not patient.biomarkers:
@@ -122,7 +132,8 @@ def biomarker_briefing(patient: Patient) -> str:
 
     return "\n".join(
         f"- {b.name}: {b.value} {b.unit} "
-        f"(normal range: {b.reference_range}; this result is {b.status}; "
+        f"(normal range: {b.reference_range}; this result is "
+        f"{_STATUS_PHRASES.get(b.status, b.status)}; "
         f"sample collected {b.collected_on})"
         for b in patient.biomarkers
     )

@@ -50,7 +50,7 @@ recalculate, estimate, average, or mention any test that is not listed here.
 {patient_name}. If someone else answers, do not share anything — ask for a good time to call back, \
 then use end_call.
 - Never state a number that is not in the results above.
-- Never diagnose, never interpret beyond "this is above/within the normal range", and never advise \
+- Never diagnose, never interpret beyond "this is above, below or within the normal range", and never advise \
 on medication, dosage, diet plans or stopping any treatment. That is {clinician}'s job, and it is \
 the reason for the consultation. If pressed, say you are a care coordinator and not a clinician.
 - If the patient describes symptoms that sound urgent — chest pain, breathlessness, fainting, \
@@ -99,6 +99,17 @@ def greeting(patient_name: str) -> str:
         f"Hello, this is {AGENT_PERSONA} calling from {CLINIC_NAME}. "
         f"Am I speaking with {patient_name}?"
     )
+
+
+# Spoken by end_call only when the agent is about to hang up without having replied to the
+# patient's last words. Deliberately free of health information: the caller may be unverified.
+CLOSING_LINES = {
+    "do_not_call": "Understood. We will not call you again. Goodbye.",
+    "callback_requested": (
+        "Of course. Someone from our care team will call you back. Thank you, and take care."
+    ),
+}
+DEFAULT_CLOSING = "Thank you for your time. Take care. Goodbye."
 
 
 VOICEMAIL_MESSAGE = (

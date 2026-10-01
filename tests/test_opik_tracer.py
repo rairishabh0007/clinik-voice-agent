@@ -31,7 +31,9 @@ class RecordingClient:
 
 
 def _tracer(**overrides):
-    tracer = OpikCallTracer(call_id="room-1", enabled=False, sdk_scoring=False, **overrides)
+    tracer = OpikCallTracer(
+        call_id="room-1", enabled=False, **{"sdk_scoring": False, **overrides}
+    )
     tracer._enabled, tracer._client = True, RecordingClient()
     return tracer
 
@@ -87,3 +89,23 @@ async def test_collection_runs_with_opik_disabled():
     await tracer.finalise()
 
     assert [item["text"] for item in received] == ["Hello?"]
+
+
+async def test_protocol_judge_sees_both_sides_of_the_conversation(monkeypatch):
+    """Without the patient's lines the judge cannot see identity being confirmed."""
+    seen = {}
+
+    def fake_score(agent_text, conversation, analysis):
+        seen.update(agent_text=agent_text, conversation=conversation)
+        return []
+
+    tracer, session = _tracer(sdk_scoring=True), FakeSession()
+    monkeypatch.setattr(tracer, "_score_sync", fake_score)
+    tracer.attach(session)
+    _say(session, "assistant", "Am I speaking with Vikram?")
+    _say(session, "user", "Yes, this is Vikram.")
+
+    await tracer.finalise()
+
+    assert "patient: Yes, this is Vikram." in seen["conversation"]
+    assert "Yes, this is Vikram" not in seen["agent_text"]

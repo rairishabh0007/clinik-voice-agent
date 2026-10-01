@@ -227,7 +227,10 @@ async def entrypoint(ctx: JobContext) -> None:
     @ctx.room.on("participant_disconnected")
     def _on_disconnect(participant: rtc.RemoteParticipant) -> None:
         reason = getattr(participant, "disconnect_reason", None)
-        state.disconnect_reason = str(reason) if reason is not None else "unknown"
+        try:
+            state.disconnect_reason = rtc.DisconnectReason.Name(reason)
+        except (TypeError, ValueError):
+            state.disconnect_reason = str(reason) if reason is not None else "unknown"
         logger.info("participant %s left: %s", participant.identity, state.disconnect_reason)
 
     await ctx.connect()

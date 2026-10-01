@@ -12,7 +12,14 @@ from typing import Any
 from livekit.agents import Agent, RunContext, function_tool, get_job_context
 from livekit.agents.llm import ToolError
 
-from agent.prompts import AGENT_PERSONA, CLINIC_NAME, VOICEMAIL_MESSAGE, build_instructions
+from agent.prompts import (
+    AGENT_PERSONA,
+    CLINIC_NAME,
+    CLOSING_LINES,
+    DEFAULT_CLOSING,
+    VOICEMAIL_MESSAGE,
+    build_instructions,
+)
 from services import scheduler
 from services.call_state import CallState
 
@@ -49,6 +56,14 @@ class PatientOutreachAgent(Agent):
             await ctx.delete_room()
         except Exception:
             logger.exception("failed to delete room during hangup")
+
+    def _owes_a_reply(self) -> bool:
+        """True when the patient spoke last, i.e. hanging up now would cut them off unanswered."""
+        messages = [
+            item for item in self.chat_ctx.items
+            if item.type == "message" and item.role in ("user", "assistant")
+        ]
+        return bool(messages) and messages[-1].role == "user"
 
     # ------------------------------------------------------------------ tools
 
@@ -217,4 +232,9 @@ class PatientOutreachAgent(Agent):
         logger.info("ending call for %s: %s", self._state.patient.id, normalised)
 
         await context.wait_for_playout()
+        # Models often emit end_call with no spoken goodbye; never hang up on the patient in silence.
+        if self._owes_a_reply():
+            key = "do_not_call" if self._state.do_not_call_requested else normalised
+            closing = CLOSING_LINES.get(key, DEFAULT_CLOSING)
+            await context.session.say(closing, allow_interruptions=False).wait_for_playout()
         await self._hangup()

@@ -258,7 +258,9 @@ calls. Provider errors mid-call are captured on the trace rather than killing th
 if the wrong person answers nothing is disclosed. Voicemail gets a generic callback message only,
 never biomarkers — reading PHI to an unverified recipient is a disclosure. Requests for medical
 advice or medication changes are refused and deferred to the clinician. Urgent symptoms abandon the
-script and escalate. "Do not call me again" is acknowledged, flagged, and ends the call.
+script and escalate. "Do not call me again" is acknowledged, flagged, and ends the call. The agent
+never hangs up on a patient whose last words went unanswered: if the model ends the call without a
+goodbye, a fixed closing line with no health information is spoken first.
 
 **Booking** — an unavailable slot returns alternatives rather than failing; closed days say so
 explicitly; past dates and dates beyond the 21-day horizon are rejected; models that pass "tuesday"
@@ -303,7 +305,7 @@ hosting is purpose-built for this and has a free allowance.
 uv run --group dev pytest
 ```
 
-41 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
+46 tests over the logic worth testing directly: the scheduler (conflicts, alternatives, closed
 days, relative dates, the booking horizon), the analysis reconciliation (the model claiming a
 booking that did not happen, missing one that did, and every deterministic override), rate-limit
 retries, and the Opik module's failure handling (a hung analysis still logs the call, a double
