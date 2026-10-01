@@ -299,7 +299,7 @@ socket to LiveKit; the console is an ordinary HTTP service.
 
 | Piece | Where | How |
 |---|---|---|
-| Agent worker | LiveKit Cloud, `ap-south` | `lk agent create --secrets-file .env.agent`, then `lk agent deploy` |
+| Agent worker | LiveKit Cloud, `us-east` | `lk agent create --secrets-file .env.agent`, then `lk agent deploy` |
 | Web console | Render, free instance | build `pip install .`, start `python web/server.py` |
 
 The repository carries a `Dockerfile` (model weights fetched at build time so the first call is not

@@ -8,7 +8,7 @@ Opik through a single drop-in module.
 | | |
 |---|---|
 | **Code** | https://github.com/rairishabh0007/clinik-voice-agent |
-| **Agent** | LiveKit Cloud, `ap-south` (`lk agent deploy`) |
+| **Agent** | LiveKit Cloud, `us-east` (`lk agent deploy`) |
 | **Live console** | https://clinik-care-console.onrender.com |
 | **Traces** | Opik project `livekit-voice-agent` |
 
@@ -50,7 +50,7 @@ have meant paying for a worker that idles.
 
 | Piece | Role and where it runs |
 |---|---|
-| **Agent worker** | The call itself — prompt, six tools, recording. LiveKit Cloud, `ap-south` for latency. |
+| **Agent worker** | The call itself — prompt, six tools, recording. LiveKit Cloud, `us-east` (the regions offered are us-east and eu-central). |
 | **Web console** | Start a call, watch the transcript stream, read the analysis. Render. Reads call data back out of Opik rather than keeping a copy. |
 | **`observability/opik_tracer.py`** | The deliverable module. Hooks LiveKit's session events and a shutdown callback; emits turn traces, a call trace, tool spans, the audio attachment and scores. |
 | **`services/scheduler.py`** | Stands in for a real booking system. Deterministic availability so a demo reproduces; conflicts return alternatives rather than failing. |
