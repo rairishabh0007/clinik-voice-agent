@@ -81,6 +81,18 @@ record. Patients on the do-not-call list are visibly blocked from dialling.
 **Use headphones.** On speakers the agent hears its own voice through the microphone, it gets
 transcribed as the patient, and it starts replying to itself.
 
+**Sending the report.** After the analysis lands, the console can send a short report:
+
+- **Email** — sent by the server over SMTP. Set `SMTP_USER` and `SMTP_PASSWORD` in `.env`; with
+  Gmail the password is an [App password](https://myaccount.google.com/apppasswords). An address
+  entered before the call gets the report automatically. Each call can be emailed at most three
+  times, since the console is public.
+- **WhatsApp** — opens WhatsApp's click-to-chat link with the report typed in, so it is sent from
+  your own number with one tap. No account or API key is needed.
+
+Patient and agent avatars are remixes of [Avataaars](https://avataaars.com/) by Pablo Stanley
+(free for personal and commercial use), generated with DiceBear and stored in `web/static/`.
+
 ---
 
 ## Architecture

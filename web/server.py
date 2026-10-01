@@ -29,7 +29,7 @@ from livekit import api  # noqa: E402
 
 from agent.prompts import AGENT_PERSONA, CLINIC_NAME  # noqa: E402
 from observability import opik_reader as reader  # noqa: E402
-from services import patients  # noqa: E402
+from services import patients, report  # noqa: E402
 
 load_dotenv()
 
@@ -41,6 +41,10 @@ PORT = int(os.getenv("PORT") or os.getenv("WEB_PORT") or 8080)
 WEB_DIR = Path(__file__).resolve().parent
 INDEX = WEB_DIR / "index.html"
 OVERVIEW = WEB_DIR / "overview.html"
+STATIC = WEB_DIR / "static"
+# The console is public, so one call's report can be emailed only a few times.
+MAX_EMAILS_PER_CALL = 3
+_emails_sent: dict[str, int] = {}
 
 
 async def index(_: web.Request) -> web.StreamResponse:
@@ -57,6 +61,8 @@ async def list_patients(_: web.Request) -> web.Response:
         {
             "id": p.id,
             "name": p.name,
+            "avatar": f"/static/avatars/{p.id}.svg" if (STATIC / "avatars" / f"{p.id}.svg").exists()
+            else None,
             "care_program": p.care_program,
             "clinician": p.ordering_clinician,
             "phone": patients.mask_phone(p.phone_number),
@@ -139,6 +145,7 @@ async def start_call(request: web.Request) -> web.Response:
         "url": os.getenv("LIVEKIT_URL"),
         "patient": patient.name,
         "agent": AGENT_PERSONA,
+        "agent_avatar": "/static/avatars/riya.svg",
     })
 
 
@@ -155,27 +162,24 @@ async def end_call(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-async def analysis(request: web.Request) -> web.Response:
-    """Poll target. Returns ready=False until the agent has flushed the call to Opik."""
-    room_name = request.query.get("room")
-    if not room_name:
-        return web.json_response({"error": "room is required"}, status=400)
-    if not reader.configured():
-        return web.json_response({"ready": False, "error": "Opik is not configured"})
+async def _analysis_payload(room_name: str) -> dict:
+    """The finished call as the console shows it. ready=False until the agent has flushed it."""
+    summary = await asyncio.to_thread(reader.find_call_by_room, room_name)
+    if summary is None:
+        return {"ready": False}
+    detail = await asyncio.to_thread(reader.get_call, summary.trace_id)
+    project_id = await asyncio.to_thread(reader.project_id)
 
     try:
-        summary = await asyncio.to_thread(reader.find_call_by_room, room_name)
-        if summary is None:
-            return web.json_response({"ready": False})
-        detail = await asyncio.to_thread(reader.get_call, summary.trace_id)
-        project_id = await asyncio.to_thread(reader.project_id)
-    except Exception as exc:
-        logger.exception("could not read analysis")
-        return web.json_response({"ready": False, "error": str(exc)})
-
+        patient_name = patients.get_patient(summary.patient_id or "").name
+    except patients.PatientNotFound:
+        patient_name = None
     a = detail.analysis
-    return web.json_response({
+    data = {
         "ready": True,
+        "patient_id": summary.patient_id,
+        "patient_name": patient_name,
+        "duration_s": summary.duration_s,
         "outcome": summary.outcome,
         "appointment_booked": a.get("appointment_booked"),
         "identity_verified": a.get("identity_verified"),
@@ -195,7 +199,59 @@ async def analysis(request: web.Request) -> web.Response:
         ],
         "trace_url": reader.trace_url(project_id, summary.trace_id),
         "recording": detail.metadata.get("recording_attached"),
-    })
+    }
+    data["report_text"] = report.report_text(data, CLINIC_NAME)
+    return data
+
+
+async def analysis(request: web.Request) -> web.Response:
+    """Poll target. Returns ready=False until the agent has flushed the call to Opik."""
+    room_name = request.query.get("room")
+    if not room_name:
+        return web.json_response({"error": "room is required"}, status=400)
+    if not reader.configured():
+        return web.json_response({"ready": False, "error": "Opik is not configured"})
+    try:
+        return web.json_response(await _analysis_payload(room_name))
+    except Exception as exc:
+        logger.exception("could not read analysis")
+        return web.json_response({"ready": False, "error": str(exc)})
+
+
+async def config(_: web.Request) -> web.Response:
+    return web.json_response({"email": report.email_configured()})
+
+
+async def send_report(request: web.Request) -> web.Response:
+    """Email the finished call's report. Only for a call that exists and has been analysed."""
+    body = await _json_body(request)
+    room_name, to = body.get("room"), str(body.get("email") or "").strip()
+    if not isinstance(room_name, str) or not room_name.startswith("web-"):
+        return web.json_response({"error": "a console room name is required"}, status=400)
+    if not report.valid_email(to):
+        return web.json_response({"error": "Enter a valid email address."}, status=400)
+    if not report.email_configured():
+        return web.json_response({"error": "Email is not set up on this server."}, status=503)
+    if _emails_sent.get(room_name, 0) >= MAX_EMAILS_PER_CALL:
+        return web.json_response({"error": "This report has already been sent the maximum "
+                                           "number of times."}, status=429)
+    try:
+        data = await _analysis_payload(room_name)
+    except Exception:
+        logger.exception("could not read analysis for report")
+        return web.json_response({"error": "Could not read the call analysis."}, status=502)
+    if not data.get("ready"):
+        return web.json_response({"error": "The analysis is not ready yet."}, status=409)
+
+    try:
+        await asyncio.to_thread(report.send_email, to, data, CLINIC_NAME)
+    except Exception as exc:
+        logger.warning("report email to %s failed: %s", to, exc)
+        return web.json_response({"error": "The email could not be sent. Check the SMTP "
+                                           "settings on the server."}, status=502)
+    _emails_sent[room_name] = _emails_sent.get(room_name, 0) + 1
+    logger.info("emailed report for %s", room_name)
+    return web.json_response({"ok": True})
 
 
 def build_app() -> web.Application:
@@ -207,7 +263,10 @@ def build_app() -> web.Application:
         web.post("/api/call", start_call),
         web.post("/api/end", end_call),
         web.get("/api/analysis", analysis),
+        web.get("/api/config", config),
+        web.post("/api/report", send_report),
     ])
+    app.router.add_static("/static", STATIC)
     return app
 
 

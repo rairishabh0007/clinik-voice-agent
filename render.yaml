@@ -25,3 +25,8 @@ services:
         sync: false
       - key: AGENT_NAME
         value: healthcare-outbound-caller
+      # Optional: email the post-call report from the console (Gmail app password).
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
